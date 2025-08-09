@@ -12,6 +12,9 @@ export interface TrainingCard {
   rarity: CardRarity;
   category: CardCategory;
   
+  // すごろく進行用
+  number: number; // 進行マス数（栄冠ナイン風）
+  
   // 視覚情報
   icon: string;
   color: string;

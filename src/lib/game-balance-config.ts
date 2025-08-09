@@ -255,8 +255,8 @@ export class GameBalanceManager {
     
     return {
       level: 1,
-      grade: Math.floor(Math.random() * 3) + 1, // 1-3年生
-      position: roleConfig.position,
+      grade: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3, // 1-3年生
+      position: roleConfig.position as "captain" | "vice_captain" | "regular" | "member",
       condition: 'good',
       motivation: role === 'ace' ? 85 : Math.floor(Math.random() * 20) + 60, // 60-80 (エースは高め)
       
@@ -270,7 +270,7 @@ export class GameBalanceManager {
       
       matches_played: 0,
       matches_won: 0,
-      experience_points: 0
+      experience: 0
     };
   }
   

@@ -70,6 +70,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     description: '基本的なサーブフォームを徹底的に練習',
     rarity: 'common',
     category: 'technical',
+    number: 1, // 1マス進行
     icon: '🎾',
     color: '#059669',
     bgGradient: 'from-green-400 to-green-600',
@@ -100,6 +101,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     description: '威力重視のパワーサーブを習得',
     rarity: 'rare',
     category: 'technical',
+    number: 3, // 3マス進行（高強度練習）
     icon: '💥',
     color: '#DC2626',
     bgGradient: 'from-red-500 to-orange-600',
@@ -153,6 +155,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     description: '長距離走でスタミナを大幅強化',
     rarity: 'common',
     category: 'physical',
+    number: 2, // 2マス進行（中程度の練習）
     icon: '🏃',
     color: '#2563EB',
     bgGradient: 'from-blue-400 to-blue-600',
@@ -185,6 +188,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     description: 'ウェイトとプライオメトリクスの組み合わせ',
     rarity: 'uncommon',
     category: 'physical',
+    number: 2, // 2マス進行
     icon: '💪',
     color: '#7C2D12',
     bgGradient: 'from-orange-500 to-red-600',
@@ -237,6 +241,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     description: '静寂の中で心を鍛える',
     rarity: 'uncommon',
     category: 'mental',
+    number: 1, // 1マス進行（軽い練習）
     icon: '🧘',
     color: '#7C3AED',
     bgGradient: 'from-purple-400 to-indigo-600',
@@ -281,16 +286,16 @@ export const TRAINING_CARDS: TrainingCard[] = [
   // === 戦術系カード ===
   {
     id: 'match_strategy',
-    name: '戦術研究',
+    name: '戦術研究（練習メニュー）',
     description: '相手を分析し戦略を練る',
     rarity: 'rare',
     category: 'tactical',
+    number: 2, // 2マス進行
     icon: '📊',
     color: '#059669',
     bgGradient: 'from-emerald-400 to-teal-600',
     baseEffects: {
       skillGrowth: {
-        mental: 10,
         return_skill: 8,
         volley_skill: 6
       },
@@ -324,6 +329,7 @@ export const TRAINING_CARDS: TrainingCard[] = [
     description: '伝説的な選手の精神を学ぶ',
     rarity: 'legendary',
     category: 'special',
+    number: 5, // 5マス進行（最大効果）
     icon: '👑',
     color: '#DC2626',
     bgGradient: 'from-yellow-400 via-red-500 to-pink-600',
@@ -333,7 +339,6 @@ export const TRAINING_CARDS: TrainingCard[] = [
         return_skill: 12,
         volley_skill: 12,
         stroke_skill: 12,
-        mental: 20,
         stamina: 8
       },
       statusChanges: {
@@ -375,7 +380,6 @@ export const TRAINING_CARDS: TrainingCard[] = [
             chance: 50
           },
           skillGrowth: {
-            mental: 30,
             serve_skill: 20,
             return_skill: 20,
             volley_skill: 20,
@@ -527,14 +531,18 @@ export class TrainingCardSystem {
     // スキル成長適用
     if (card.baseEffects.skillGrowth) {
       for (const [skill, value] of Object.entries(card.baseEffects.skillGrowth)) {
-        actualEffects.skillGrowth![skill] = Math.round(value * effectMultiplier);
+        if (value !== undefined) {
+          (actualEffects.skillGrowth as any)[skill] = Math.round(value * effectMultiplier);
+        }
       }
     }
 
     // ステータス変化適用
     if (card.baseEffects.statusChanges) {
       for (const [status, value] of Object.entries(card.baseEffects.statusChanges)) {
-        actualEffects.statusChanges![status] = Math.round(value * (success ? 1 : 0.5));
+        if (value !== undefined) {
+          (actualEffects.statusChanges as any)[status] = Math.round(value * (success ? 1 : 0.5));
+        }
       }
     }
 

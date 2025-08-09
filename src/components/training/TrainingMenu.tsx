@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Player } from '@/types/game';
 import { ExperienceBalanceSystem, ExperienceHelpers } from '@/lib/experience-balance-system';
+import { EvolutionSystem } from '@/lib/evolution-system';
+import { EvolutionModal } from '@/components/evolution/EvolutionModal';
+import { supabase } from '@/lib/supabase';
 import { Timer, Zap, Brain, Heart, Star, Users } from 'lucide-react';
 
 interface TrainingMenuProps {
@@ -73,6 +76,8 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
   const [todayProgress, setTodayProgress] = useState(ExperienceHelpers.getTodayProgress());
   const [isTraining, setIsTraining] = useState(false);
   const [funds, setFunds] = useState(5000); // 暫定的な資金
+  const [showEvolutionModal, setShowEvolutionModal] = useState(false);
+  const [evolutionTarget, setEvolutionTarget] = useState<Player | null>(null);
 
   useEffect(() => {
     // 定期的に今日の進捗を更新
@@ -119,6 +124,26 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
       // モチベーション調整
       finalPlayer.motivation = Math.min(100, (finalPlayer.motivation || 50) + Math.floor(Math.random() * 3) + 1);
 
+      // 永続化（練習による能力と経験値の更新）
+      try {
+        await supabase
+          .from('players')
+          .update({
+            serve_skill: finalPlayer.serve_skill,
+            return_skill: finalPlayer.return_skill,
+            volley_skill: finalPlayer.volley_skill,
+            stroke_skill: finalPlayer.stroke_skill,
+            mental: finalPlayer.mental,
+            stamina: finalPlayer.stamina,
+            motivation: finalPlayer.motivation,
+            experience: finalPlayer.experience,
+            level: finalPlayer.level
+          })
+          .eq('id', finalPlayer.id);
+      } catch (e) {
+        console.error('Failed to persist training update:', e);
+      }
+
       onPlayerUpdate(finalPlayer);
       setTodayProgress(ExperienceHelpers.getTodayProgress());
 
@@ -131,9 +156,14 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
 
       alert(messages.join('\n'));
 
-      // レベルアップ通知
+      // レベルアップ通知 + 進化判定
       if ((finalPlayer as any).leveledUp) {
         alert(`🎉 ${player.pokemon_name}がレベルアップしました！\nレベル${finalPlayer.level}になりました！`);
+        const evalResult = EvolutionSystem.canEvolve(finalPlayer);
+        if (evalResult.canEvolve) {
+          setEvolutionTarget(finalPlayer);
+          setShowEvolutionModal(true);
+        }
       }
 
     } catch (error) {
@@ -188,6 +218,7 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
   const remaining = todayProgress.remaining;
 
   return (
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* ヘッダー */}
@@ -303,5 +334,49 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
         </div>
       </div>
     </div>
+    {evolutionTarget && (
+      <EvolutionModal
+        player={evolutionTarget}
+        isOpen={showEvolutionModal}
+        onClose={() => setShowEvolutionModal(false)}
+        onEvolutionComplete={(evolved) => {
+          // 進化後の永続化
+          (async () => {
+            try {
+              await supabase
+                .from('players')
+                .update({
+                  pokemon_name: evolved.pokemon_name,
+                  pokemon_id: evolved.pokemon_id,
+                  level: evolved.level,
+                  serve_skill: evolved.serve_skill,
+                  return_skill: evolved.return_skill,
+                  volley_skill: evolved.volley_skill,
+                  stroke_skill: evolved.stroke_skill,
+                  mental: evolved.mental,
+                  stamina: evolved.stamina,
+                  condition: evolved.condition,
+                  motivation: evolved.motivation,
+                  experience: evolved.experience,
+                  types: evolved.types || null,
+                  special_abilities: evolved.special_abilities || [],
+                  pokemon_stats: evolved.pokemon_stats || null
+                })
+                .eq('id', evolved.id);
+            } catch (e) {
+              console.error('Failed to persist evolved player:', e);
+            }
+          })();
+
+          onPlayerUpdate(evolved);
+          setShowEvolutionModal(false);
+          setEvolutionTarget(null);
+        }}
+      />
+    )}
+    </>
   );
 }
+
+// 進化モーダルの描画（ルート内）
+/* JSX is above; append modal at end of component tree */

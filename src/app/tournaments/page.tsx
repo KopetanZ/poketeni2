@@ -5,6 +5,10 @@ import { useAuth } from '@/components/AuthProvider';
 import { useGameData } from '@/hooks/useGameData';
 import { Player } from '@/types/game';
 import { MatchResult } from '@/lib/match-engine';
+import { ExperienceBalanceSystem } from '@/lib/experience-balance-system';
+import { EvolutionSystem } from '@/lib/evolution-system';
+import { EvolutionModal } from '@/components/evolution/EvolutionModal';
+import { supabase } from '@/lib/supabase';
 import TournamentList from '@/components/tournament/TournamentList';
 import MatchSimulator from '@/components/tournament/MatchSimulator';
 
@@ -17,6 +21,8 @@ export default function TournamentsPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showEvolutionModal, setShowEvolutionModal] = useState(false);
+  const [evolutionTarget, setEvolutionTarget] = useState<Player | null>(null);
 
   // 認証チェック
   if (!user) {
@@ -64,12 +70,55 @@ export default function TournamentsPage() {
   const handleMatchComplete = (result: MatchResult) => {
     setMatchResult(result);
     setViewMode('results');
-    
-    // 勝利した場合、選手の経験値を増加
-    if (result.winner_school === 'home' && selectedPlayer) {
-      updatePlayerExperience(selectedPlayer.id, 20);
-    } else if (selectedPlayer) {
-      updatePlayerExperience(selectedPlayer.id, 10);
+
+    // 経験値を試合結果に応じて付与し、レベルアップ・進化を判定
+    if (selectedPlayer) {
+      const won = result.winner_school === 'home';
+      const totalHomePoints = result.sets.reduce((sum, s) => sum + s.home_performance.total_points, 0);
+      const totalAwayPoints = result.sets.reduce((sum, s) => sum + s.away_performance.total_points, 0);
+      const performanceRating = Math.max(0.5, Math.min(1.5, (totalHomePoints / Math.max(totalAwayPoints, 1))));
+
+      const expResult = ExperienceBalanceSystem.gainExperienceFromMatch(
+        selectedPlayer,
+        'practice',
+        { won, performance_rating: performanceRating }
+      );
+
+      if (expResult.can_gain) {
+        const updated = ExperienceBalanceSystem.applyExperienceGain(selectedPlayer, expResult.exp_gained);
+        // 反映（簡易）
+        Object.assign(selectedPlayer, updated);
+
+        // 永続化（経験値・レベルの更新）
+        (async () => {
+          try {
+            await supabase
+              .from('players')
+              .update({
+                experience: updated.experience,
+                level: updated.level,
+                serve_skill: updated.serve_skill,
+                return_skill: updated.return_skill,
+                volley_skill: updated.volley_skill,
+                stroke_skill: updated.stroke_skill,
+                mental: updated.mental,
+                stamina: updated.stamina
+              })
+              .eq('id', updated.id);
+          } catch (e) {
+            console.error('Failed to persist match exp/level update:', e);
+          }
+        })();
+
+        if ((updated as any).leveledUp) {
+          // 進化判定
+          const evalResult = EvolutionSystem.canEvolve(updated);
+          if (evalResult.canEvolve) {
+            setEvolutionTarget(updated);
+            setShowEvolutionModal(true);
+          }
+        }
+      }
     }
   };
 
@@ -229,7 +278,8 @@ export default function TournamentsPage() {
                 <div className="mt-6 p-4 bg-white rounded-lg">
                   <h3 className="font-semibold mb-2">獲得した経験値:</h3>
                   <div className="text-2xl font-bold text-indigo-600">
-                    +{matchResult.winner_school === 'home' ? 20 : 10} EXP
+                    {/* 実際の付与量はバランスシステム依存のため目安表示 */}
+                    {matchResult.winner_school === 'home' ? '+多め' : '+少なめ'}
                   </div>
                   <p className="text-sm text-gray-600 mt-2">
                     {matchResult.winner_school === 'home' 
@@ -256,6 +306,50 @@ export default function TournamentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 進化モーダル */}
+      {evolutionTarget && (
+        <EvolutionModal
+          player={evolutionTarget}
+          isOpen={showEvolutionModal}
+          onClose={() => setShowEvolutionModal(false)}
+          onEvolutionComplete={(evolved) => {
+            // 選択中プレイヤーに反映
+            if (selectedPlayer && evolved.id === selectedPlayer.id) {
+              Object.assign(selectedPlayer, evolved);
+            }
+            // 永続化（進化後の更新）
+            (async () => {
+              try {
+                await supabase
+                  .from('players')
+                  .update({
+                    pokemon_name: evolved.pokemon_name,
+                    pokemon_id: evolved.pokemon_id,
+                    level: evolved.level,
+                    serve_skill: evolved.serve_skill,
+                    return_skill: evolved.return_skill,
+                    volley_skill: evolved.volley_skill,
+                    stroke_skill: evolved.stroke_skill,
+                    mental: evolved.mental,
+                    stamina: evolved.stamina,
+                    condition: evolved.condition,
+                    motivation: evolved.motivation,
+                    experience: evolved.experience,
+                    types: evolved.types || null,
+                    special_abilities: evolved.special_abilities || [],
+                    pokemon_stats: evolved.pokemon_stats || null
+                  })
+                  .eq('id', evolved.id);
+              } catch (e) {
+                console.error('Failed to persist evolved player:', e);
+              }
+            })();
+            setShowEvolutionModal(false);
+            setEvolutionTarget(null);
+          }}
+        />
       )}
     </div>
   );

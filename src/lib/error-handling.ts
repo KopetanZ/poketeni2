@@ -197,7 +197,7 @@ export const ErrorRecovery = {
     }
 
     // 正規化
-    const normalized = {};
+    const normalized: Record<string, number> = {};
     Object.entries(probabilities).forEach(([key, value]) => {
       normalized[key] = Math.max(0, value) / total * 100;
     });
@@ -372,7 +372,7 @@ export class PerformanceMonitor {
   }
 
   static getMetrics(): Record<string, any> {
-    const result = {};
+    const result: Record<string, any> = {};
     this.metrics.forEach((value, key) => {
       result[key] = { ...value };
     });

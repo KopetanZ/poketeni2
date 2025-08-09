@@ -18,9 +18,16 @@ export class EquipmentEffectsCalculator {
       special_abilities: [] as string[]
     };
 
-    // 各装備スロットをチェック
-    Object.values(equipment).forEach(item => {
-      if (item && item.effects) {
+    // 各装備スロットをチェック（player_id は除外）
+    const equippedItems = [
+      equipment.racket,
+      equipment.shoes,
+      equipment.accessory,
+      equipment.pokemon_item
+    ].filter(Boolean) as Equipment[];
+
+    equippedItems.forEach(item => {
+      if (item.effects) {
         // 基本ステータス効果
         Object.entries(item.effects).forEach(([stat, value]) => {
           if (typeof value === 'number' && stat in totalEffects) {
@@ -29,8 +36,8 @@ export class EquipmentEffectsCalculator {
         });
 
         // 特殊能力効果
-        if ('specialAbility' in item && item.specialAbility) {
-          totalEffects.special_abilities.push(item.specialAbility);
+        if ('specialAbility' in item && (item as any).specialAbility) {
+          totalEffects.special_abilities.push((item as any).specialAbility);
         }
       }
     });
@@ -74,14 +81,17 @@ export class EquipmentEffectsCalculator {
   static degradeEquipmentDurability(equipment: PlayerEquipment, degradeAmount: number = 1): PlayerEquipment {
     const newEquipment = { ...equipment };
 
-    Object.keys(newEquipment).forEach(slot => {
-      const item = newEquipment[slot as keyof PlayerEquipment];
-      if (item && (item as Equipment).durability) {
-        const newDurability = Math.max(0, ((item as Equipment).durability?.current || 100) - (((item as Equipment).durability?.degradePerMatch || 1) * degradeAmount));
-        newEquipment[slot as keyof PlayerEquipment] = {
-          ...(item as any),
+    (['racket', 'shoes', 'accessory', 'pokemon_item'] as const).forEach(slot => {
+      const item = newEquipment[slot];
+      if (item && item.durability) {
+        const newDurability = Math.max(
+          0,
+          (item.durability?.current || 100) - ((item.durability?.degradePerMatch || 1) * degradeAmount)
+        );
+        newEquipment[slot] = {
+          ...item,
           durability: {
-            ...(item as Equipment).durability,
+            ...item.durability,
             current: newDurability
           }
         };
@@ -168,9 +178,14 @@ export class EquipmentEffectsCalculator {
       }
     };
 
-    const equippedItemIds = Object.values(equipment)
-      .filter(item => item !== null)
-      .map(item => item!.id);
+    const equippedItemIds = [
+      equipment.racket,
+      equipment.shoes,
+      equipment.accessory,
+      equipment.pokemon_item
+    ]
+      .filter((item): item is Equipment => Boolean(item))
+      .map(item => item.id);
 
     const activeSets = [];
     
@@ -252,11 +267,11 @@ export class EquipmentEffectsCalculator {
     const growthRate = GameBalanceManager.getGrowthRateForLevel(playerLevel);
     
     // 各装備の効果をプレイヤーレベルに応じて調整
-    Object.keys(adjustedEquipment).forEach(slot => {
-      const item = adjustedEquipment[slot as keyof PlayerEquipment];
-      if (item && item.effects) {
+    (['racket', 'shoes', 'accessory', 'pokemon_item'] as const).forEach(slot => {
+      const item = adjustedEquipment[slot];
+      if (item && typeof item === 'object' && 'effects' in item && item.effects) {
         const adjustedEffects = { ...item.effects };
-        
+
         // 基本ステータス効果をレベルに応じて調整
         Object.keys(adjustedEffects).forEach(stat => {
           if (typeof adjustedEffects[stat as keyof typeof adjustedEffects] === 'number') {
@@ -266,9 +281,9 @@ export class EquipmentEffectsCalculator {
             (adjustedEffects as any)[stat] = Math.floor(originalValue * levelAdjustment * growthRate);
           }
         });
-        
-        (adjustedEquipment[slot as keyof PlayerEquipment] as any) = {
-          ...item,
+
+        (adjustedEquipment[slot] as Equipment) = {
+          ...(item as Equipment),
           effects: adjustedEffects
         };
       }

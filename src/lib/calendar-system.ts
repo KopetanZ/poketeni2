@@ -522,6 +522,21 @@ export class CalendarSystem {
     return this.currentState;
   }
 
+  // 先読み: 現在日付から count 日分の CalendarDay を返す（状態は進めない）
+  public peekDays(count: number): CalendarDay[] {
+    const days: CalendarDay[] = [];
+    const currentIndex = this.currentState.yearCalendar.findIndex(
+      day => day.month === this.currentState.currentDate.month &&
+             day.day === this.currentState.currentDate.day
+    );
+
+    for (let i = 0; i < count; i++) {
+      const idx = (currentIndex + i) % this.currentState.yearCalendar.length;
+      days.push(this.currentState.yearCalendar[idx]);
+    }
+    return days;
+  }
+
   // 特定日付のマス効果取得
   public getSquareEffect(squareType: SquareType): SquareEffect {
     return SQUARE_EFFECTS[squareType];

@@ -15,7 +15,8 @@ export interface GameState {
   currentDay: CalendarDay;
   
   // プレイヤー・学校情報
-  player: Player;
+  player: Player; // メインプレイヤー（キャプテン）
+  allPlayers?: Player[]; // 全部員（オプション）
   schoolStats: {
     funds: number;
     reputation: number;
@@ -48,11 +49,12 @@ export interface GameState {
 export class IntegratedGameFlow {
   private gameState: GameState;
 
-  constructor(initialPlayer: Player, initialSchoolStats: any) {
+  constructor(initialPlayer: Player, initialSchoolStats: any, allPlayers?: Player[]) {
     this.gameState = {
       calendarSystem: new CalendarSystem(),
       currentDay: new CalendarSystem().getCurrentState().currentDate,
       player: initialPlayer,
+      allPlayers: allPlayers,
       schoolStats: {
         funds: initialSchoolStats.funds || 50000,
         reputation: initialSchoolStats.reputation || 50,
@@ -77,18 +79,18 @@ export class IntegratedGameFlow {
     this.initializeDailyFlow();
   }
 
-  // 日次フロー初期化
+  // 初期化処理
   private initializeDailyFlow(): void {
-    this.generateDailyCards();
+    this.generateInitialCards();
     this.checkForStrategicChoices();
   }
 
-  // 初回日次カード生成
-  private generateDailyCards(): void {
+  // 初回カード生成（手札として配る）
+  private generateInitialCards(): void {
     const cardDrop = TrainingCardSystem.generateCardDrop(
       this.gameState.schoolStats.reputation,
       this.gameState.player.level || 1,
-      this.calculateDailyCardCount(),
+      5, // 初期手札は5枚
       'daily_practice'
     );
 
@@ -98,6 +100,25 @@ export class IntegratedGameFlow {
     // レジェンダリーカードの統計更新
     const legendaryCards = cardDrop.cards.filter(card => card.rarity === 'legendary');
     this.gameState.stats.legendaryCardsObtained += legendaryCards.length;
+  }
+
+  // 手札補充（カードが少なくなった時のみ）
+  public replenishCards(): void {
+    if (this.gameState.availableCards.length < 3) {
+      const newCardsNeeded = 5 - this.gameState.availableCards.length;
+      const cardDrop = TrainingCardSystem.generateCardDrop(
+        this.gameState.schoolStats.reputation,
+        this.gameState.player.level || 1,
+        newCardsNeeded,
+        'daily_practice'
+      );
+
+      this.gameState.availableCards.push(...cardDrop.cards);
+
+      // レジェンダリーカードの統計更新
+      const legendaryCards = cardDrop.cards.filter(card => card.rarity === 'legendary');
+      this.gameState.stats.legendaryCardsObtained += legendaryCards.length;
+    }
   }
 
   // 日付進行メインフロー
@@ -199,8 +220,12 @@ export class IntegratedGameFlow {
     return Math.min(baseCount, 10); // 最大10枚
   }
 
-  // カード使用処理（統合）
-  public useTrainingCard(card: TrainingCard): CardUsageResult {
+  // カード使用処理（統合 + すごろく進行）
+  public useTrainingCard(card: TrainingCard): CardUsageResult & { 
+    daysProgressed: number;
+    newDays: CalendarDay[];
+    triggeredEvents: string[];
+  } {
     // 環境修正要因の計算
     const environmentModifiers = {
       weather: this.gameState.currentDay.weather || 'sunny',
@@ -236,6 +261,32 @@ export class IntegratedGameFlow {
     // プレイヤーステータス更新
     this.applyCardEffects(result);
     
+    // === すごろく進行処理 ===
+    const daysToProgress = card.number; // カードの数字分だけ日数を進める
+    const newDays: CalendarDay[] = [];
+    const triggeredEvents: string[] = [];
+    
+    for (let i = 0; i < daysToProgress; i++) {
+      const dayResult = this.gameState.calendarSystem.advanceDay();
+      newDays.push(dayResult);
+      
+      // 各日でのイベント判定
+      if (dayResult.seasonalEvent) {
+        triggeredEvents.push(`seasonal_event:${dayResult.seasonalEvent.id}`);
+      }
+      if (dayResult.hiddenEvent) {
+        triggeredEvents.push(`hidden_event:${dayResult.hiddenEvent.id}`);
+      }
+      
+      this.gameState.dayCount++;
+      if (this.gameState.dayCount % 7 === 0) {
+        this.gameState.weekCount++;
+      }
+    }
+    
+    // 現在の日付を更新
+    this.gameState.currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
+    
     // 統計更新
     this.gameState.stats.totalCardsUsed++;
     this.gameState.cardUsageHistory.push(result);
@@ -245,7 +296,12 @@ export class IntegratedGameFlow {
       c => c.id !== card.id
     );
 
-    return result;
+    return {
+      ...result,
+      daysProgressed: daysToProgress,
+      newDays,
+      triggeredEvents
+    };
   }
 
   // 戦略的選択実行
@@ -319,30 +375,34 @@ export class IntegratedGameFlow {
     return [];
   }
 
-  // カード効果適用
+  // カード効果適用（全部員対象）
   private applyCardEffects(result: CardUsageResult): void {
-    if (result.success && result.actualEffects.skillGrowth) {
-      Object.entries(result.actualEffects.skillGrowth).forEach(([skill, growth]) => {
-        this.gameState.player[skill] = (this.gameState.player[skill] || 0) + growth;
-      });
-    }
+    const playersToUpdate = this.gameState.allPlayers || [this.gameState.player];
 
-    // 体力・やる気の更新
-    this.gameState.player.stamina = Math.max(0, 
-      (this.gameState.player.stamina || 100) - result.card.costs.stamina
-    );
+    playersToUpdate.forEach(player => {
+      if (result.success && result.actualEffects.skillGrowth) {
+        Object.entries(result.actualEffects.skillGrowth).forEach(([skill, growth]) => {
+          (player as any)[skill] = ((player as any)[skill] || 0) + growth;
+        });
+      }
 
-    if (result.actualEffects.statusChanges?.condition) {
-      this.gameState.player.condition = Math.max(0, Math.min(100,
-        (this.gameState.player.condition || 50) + result.actualEffects.statusChanges.condition
-      ));
-    }
+      // 体力・やる気の更新
+      player.stamina = Math.max(0, 
+        (player.stamina || 100) - Math.floor(result.card.costs.stamina / playersToUpdate.length)
+      );
 
-    // 経験値追加
-    this.gameState.player.experience = (this.gameState.player.experience || 0) + result.experienceGained;
+      if (result.actualEffects.statusChanges?.condition) {
+        (player as any).condition = Math.max(0, Math.min(100,
+          ((player as any).condition || 50) + result.actualEffects.statusChanges.condition
+        ));
+      }
+
+      // 経験値追加（全員に同じ量）
+      player.experience = (player.experience || 0) + result.experienceGained;
+    });
     
-    // レベルアップ判定
-    this.checkLevelUp();
+    // レベルアップ判定（全員）
+    this.checkLevelUpForAllPlayers();
   }
 
   // 選択結果適用
@@ -373,7 +433,28 @@ export class IntegratedGameFlow {
     }
   }
 
-  // レベルアップ判定
+  // レベルアップ判定（全部員対象）
+  private checkLevelUpForAllPlayers(): void {
+    const experienceThresholds = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500];
+    const playersToCheck = this.gameState.allPlayers || [this.gameState.player];
+
+    playersToCheck.forEach(player => {
+      const currentLevel = player.level || 1;
+      
+      if (currentLevel < experienceThresholds.length - 1) {
+        const nextThreshold = experienceThresholds[currentLevel];
+        if (player.experience >= nextThreshold) {
+          player.level = currentLevel + 1;
+          // レベルアップ時の基本能力向上
+          ['serve_skill', 'return_skill', 'volley_skill', 'stroke_skill', 'mental', 'stamina'].forEach(skill => {
+            (player as any)[skill] = ((player as any)[skill] || 0) + 2;
+          });
+        }
+      }
+    });
+  }
+
+  // レベルアップ判定（単体プレイヤー用・後方互換）
   private checkLevelUp(): void {
     const experienceThresholds = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500];
     const currentLevel = this.gameState.player.level || 1;
@@ -384,7 +465,7 @@ export class IntegratedGameFlow {
         this.gameState.player.level = currentLevel + 1;
         // レベルアップ時の基本能力向上
         ['serve_skill', 'return_skill', 'volley_skill', 'stroke_skill', 'mental', 'stamina'].forEach(skill => {
-          this.gameState.player[skill] = (this.gameState.player[skill] || 0) + 2;
+          (this.gameState.player as any)[skill] = ((this.gameState.player as any)[skill] || 0) + 2;
         });
       }
     }
@@ -441,6 +522,16 @@ export class IntegratedGameFlow {
     return { ...this.gameState };
   }
 
+  // 全部員データ更新
+  public updateAllPlayers(players: Player[]): void {
+    this.gameState.allPlayers = players;
+    // メインプレイヤーも更新（キャプテンまたは最初のプレイヤー）
+    const captain = players.find(p => p.position === 'captain') || players[0];
+    if (captain) {
+      this.gameState.player = captain;
+    }
+  }
+
   public getCurrentDay(): CalendarDay {
     return this.gameState.currentDay;
   }
@@ -455,6 +546,11 @@ export class IntegratedGameFlow {
 
   public getGameStats(): GameState['stats'] {
     return { ...this.gameState.stats };
+  }
+
+  // 先読みしてカレンダーデイを取得（状態は進めない）
+  public peekDays(count: number): CalendarDay[] {
+    return this.gameState.calendarSystem.peekDays(count);
   }
 
   // 緊急事態処理（体力0、資金不足等）

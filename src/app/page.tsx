@@ -312,6 +312,7 @@ export default function Home() {
               reputation: school.reputation,
               facilities: 50
             }}
+            allPlayers={players}
           />
         </div>
       )}

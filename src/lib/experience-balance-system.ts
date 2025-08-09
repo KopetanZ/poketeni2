@@ -58,7 +58,7 @@ export interface DailyActivity {
   training_sessions: number;
   total_exp_gained: number;
   activities: Array<{
-    type: 'match' | 'training';
+    type: 'match' | 'training' | 'event';
     subtype: string;
     exp_gained: number;
     timestamp: Date;

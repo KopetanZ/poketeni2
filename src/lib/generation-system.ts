@@ -293,9 +293,13 @@ export class GenerationSystem {
       abilities.push({
         id: selectedAbility,
         name: selectedAbility,
+        englishName: selectedAbility,
+        type: 'serve',
+        rank: 'G',
         description: `${selectedAbility} ability`,
         color: 'blue',
-        isActive: true
+        isActive: true,
+        effects: {}
       });
     }
     

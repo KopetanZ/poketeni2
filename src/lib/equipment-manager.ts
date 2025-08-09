@@ -289,7 +289,7 @@ export class EquipmentManager {
           throw createError;
         }
 
-        inventoryData.id = newInventory.id;
+        return newInventory.id;
       }
 
       // アイテムを取得

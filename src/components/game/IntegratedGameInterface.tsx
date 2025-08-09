@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { IntegratedGameFlow, GameState } from '../../lib/integrated-game-flow';
 import { Player } from '../../types/game';
 import { CalendarDay } from '../../types/calendar';
@@ -9,6 +9,7 @@ import { StrategicChoice, ChoiceOutcome } from '../../types/strategic-choice';
 
 import CalendarView from '../calendar/CalendarView';
 import CardSelectionInterface from '../cards/CardSelectionInterface';
+import SugorokuTrainingBoard from '../training/SugorokuTrainingBoard';
 import { StrategicChoiceModal } from '../choices/StrategicChoiceModal';
 import CardUsageResultModal from '../cards/CardUsageResultModal';
 import { SeasonalEventModal } from '../events/SeasonalEventModal';
@@ -16,6 +17,9 @@ import { SeasonalEventModal } from '../events/SeasonalEventModal';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { EvolutionSystem } from '@/lib/evolution-system';
+import { EvolutionModal } from '@/components/evolution/EvolutionModal';
+import { supabase } from '@/lib/supabase';
 
 interface IntegratedGameInterfaceProps {
   initialPlayer: Player;
@@ -24,18 +28,20 @@ interface IntegratedGameInterfaceProps {
     reputation: number;
     facilities: number;
   };
+  allPlayers?: Player[];
 }
 
 export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = ({
   initialPlayer,
-  initialSchoolStats
+  initialSchoolStats,
+  allPlayers
 }) => {
   // ゲームフロー管理
-  const [gameFlow] = useState(() => new IntegratedGameFlow(initialPlayer, initialSchoolStats));
+  const [gameFlow] = useState(() => new IntegratedGameFlow(initialPlayer, initialSchoolStats, allPlayers));
   const [gameState, setGameState] = useState<GameState>(gameFlow.getGameState());
   
   // UI状態管理
-  const [activeTab, setActiveTab] = useState<'calendar' | 'cards' | 'stats'>('calendar');
+  const [activeTab, setActiveTab] = useState<'sugoroku' | 'calendar' | 'stats'>('sugoroku');
   const [showStrategicChoice, setShowStrategicChoice] = useState(false);
   const [showCardResult, setShowCardResult] = useState(false);
   const [showSeasonalEvent, setShowSeasonalEvent] = useState(false);
@@ -48,10 +54,23 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [notifications, setNotifications] = useState<string[]>([]);
   const [isAdvancingDay, setIsAdvancingDay] = useState(false);
 
+  // 進化モーダル管理
+  const [showEvolutionModal, setShowEvolutionModal] = useState(false);
+  const [evolutionTarget, setEvolutionTarget] = useState<Player | null>(null);
+  const promptedEvolutionIdsRef = useRef<Set<string>>(new Set());
+
   // ゲーム状態の同期
   const syncGameState = () => {
     setGameState(gameFlow.getGameState());
   };
+
+  // 全部員データの更新監視
+  useEffect(() => {
+    if (allPlayers && allPlayers.length > 0) {
+      gameFlow.updateAllPlayers(allPlayers);
+      syncGameState();
+    }
+  }, [allPlayers, gameFlow]);
 
   // 日付進行処理
   const handleAdvanceDay = async () => {
@@ -85,6 +104,20 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         setShowSeasonalEvent(true);
       }
       
+      // 日進行後に進化可能チェック（新規のみ）
+      try {
+        const stateAfter = gameFlow.getGameState();
+        const candidates = EvolutionSystem
+          .getEvolvablePlayers(stateAfter.allPlayers || [stateAfter.player])
+          .filter(p => !promptedEvolutionIdsRef.current.has(p.id));
+        if (candidates.length > 0) {
+          setEvolutionTarget(candidates[0]);
+          setShowEvolutionModal(true);
+          promptedEvolutionIdsRef.current.add(candidates[0].id);
+          newNotifications.push(`${candidates[0].pokemon_name}が進化可能になりました！`);
+        }
+      } catch {}
+
       setNotifications(prev => [...prev, ...newNotifications].slice(-5)); // 最新5件のみ保持
       
     } catch (error) {
@@ -95,17 +128,50 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     setIsAdvancingDay(false);
   };
 
-  // カード使用処理（子コンポーネントから計算済み結果を受け取る）
-  const handleCardUse = (result: CardUsageResult) => {
+  // カード使用処理（すごろく進行対応）
+  const handleCardUse = (cardId: string) => {
     try {
+      const card = gameState.availableCards.find(c => c.id === cardId);
+      if (!card) return;
+
+      // IntegratedGameFlow の useTrainingCard を呼び出し（すごろく進行含む）
+      const result = gameFlow.useTrainingCard(card);
+      
       setLastCardResult(result);
       setShowCardResult(true);
       syncGameState();
       
-      // 成功時の通知
+      // 進行結果の通知
+      const progressNotifications: string[] = [];
       if (result.success) {
-        setNotifications(prev => [...prev, `${result.card.name}: ${result.successLevel}`].slice(-5));
+        progressNotifications.push(`${card.name}: ${result.successLevel}`);
       }
+      progressNotifications.push(`${result.daysProgressed}日進行しました`);
+      
+      // イベント通知
+      if (result.triggeredEvents.length > 0) {
+        progressNotifications.push(`イベント発生: ${result.triggeredEvents.length}件`);
+      }
+      
+      // 進化可能チェック（新規のみ）
+      try {
+        const stateAfter = gameFlow.getGameState();
+        const candidates = EvolutionSystem
+          .getEvolvablePlayers(stateAfter.allPlayers || [stateAfter.player])
+          .filter(p => !promptedEvolutionIdsRef.current.has(p.id));
+        if (candidates.length > 0) {
+          setEvolutionTarget(candidates[0]);
+          setShowEvolutionModal(true);
+          promptedEvolutionIdsRef.current.add(candidates[0].id);
+          progressNotifications.push(`${candidates[0].pokemon_name}が進化可能になりました！`);
+        }
+      } catch {}
+
+      setNotifications(prev => [...prev, ...progressNotifications].slice(-5));
+      
+      // 1日に選べるカードは1枚: 使用後すぐに補充せず、次の日の頭で補充（UI側は isLoading を短時間ON/OFFで多重使用を防止）
+      // ここでは state 同期のみ
+      syncGameState();
       
       // 緊急事態チェック
       const emergency = gameFlow.handleEmergency();
@@ -244,18 +310,18 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         {/* タブナビゲーション */}
         <div className="flex gap-2 mb-6">
           <Button
+            onClick={() => setActiveTab('sugoroku')}
+            variant={activeTab === 'sugoroku' ? 'default' : 'outline'}
+            className="flex items-center gap-2"
+          >
+            🎲 練習すごろく ({gameState.availableCards.length}枚)
+          </Button>
+          <Button
             onClick={() => setActiveTab('calendar')}
             variant={activeTab === 'calendar' ? 'default' : 'outline'}
             className="flex items-center gap-2"
           >
             📅 カレンダー
-          </Button>
-          <Button
-            onClick={() => setActiveTab('cards')}
-            variant={activeTab === 'cards' ? 'default' : 'outline'}
-            className="flex items-center gap-2"
-          >
-            🃏 練習カード ({gameState.availableCards.length})
           </Button>
           <Button
             onClick={() => setActiveTab('stats')}
@@ -268,6 +334,31 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
         {/* タブコンテンツ */}
         <div className="space-y-6">
+          {activeTab === 'sugoroku' && (
+            <div className="h-[800px]">
+              <SugorokuTrainingBoard
+                cards={gameState.availableCards.map(card => ({
+                  id: card.id,
+                  name: card.name,
+                  type: 'training' as const,
+                  number: card.number,
+                  rarity: card.rarity,
+                  description: card.description,
+                  trainingEffects: Object.entries(card.baseEffects.skillGrowth || {}).reduce((acc, [key, value]) => {
+                    if (value !== undefined) {
+                      acc[key] = value;
+                    }
+                    return acc;
+                  }, {} as Record<string, number>)
+                }))}
+                onCardUse={handleCardUse}
+                currentProgress={gameState.dayCount}
+                isLoading={isAdvancingDay}
+                peekDays={gameState.calendarSystem.peekDays(14)}
+              />
+            </div>
+          )}
+
           {activeTab === 'calendar' && (
             <CalendarView
               schoolFunds={gameState.schoolStats.funds}
@@ -280,18 +371,6 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
             />
           )}
 
-          {activeTab === 'cards' && (
-            <CardSelectionInterface
-              player={gameState.player}
-              schoolFunds={gameState.schoolStats.funds}
-              schoolReputation={gameState.schoolStats.reputation}
-              onCardUse={handleCardUse}
-              onStatsUpdate={(updatedPlayer) => {
-                gameState.player = updatedPlayer;
-                syncGameState();
-              }}
-            />
-          )}
 
           {activeTab === 'stats' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -425,6 +504,56 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
           schoolReputation={gameState.schoolStats.reputation}
           onEventComplete={handleSeasonalEvent}
           onClose={() => setShowSeasonalEvent(false)}
+        />
+      )}
+
+      {/* 進化モーダル */}
+      {evolutionTarget && (
+        <EvolutionModal
+          player={evolutionTarget}
+          isOpen={showEvolutionModal}
+          onClose={() => setShowEvolutionModal(false)}
+          onEvolutionComplete={(evolvedPlayer) => {
+            // プレイヤー配列を更新
+            const state = gameFlow.getGameState();
+            const all = state.allPlayers || [state.player];
+            const replaced = all.map(p => (p.id === evolvedPlayer.id ? evolvedPlayer : p));
+            gameFlow.updateAllPlayers(replaced as Player[]);
+            syncGameState();
+            setEvolutionTarget(null);
+            setShowEvolutionModal(false);
+
+            // 通知
+            setNotifications(prev => [...prev, `${evolvedPlayer.pokemon_name}に進化！`].slice(-5));
+
+            // Supabaseへ永続化
+            (async () => {
+              try {
+                await supabase
+                  .from('players')
+                  .update({
+                    pokemon_name: evolvedPlayer.pokemon_name,
+                    pokemon_id: evolvedPlayer.pokemon_id,
+                    level: evolvedPlayer.level,
+                    serve_skill: evolvedPlayer.serve_skill,
+                    return_skill: evolvedPlayer.return_skill,
+                    volley_skill: evolvedPlayer.volley_skill,
+                    stroke_skill: evolvedPlayer.stroke_skill,
+                    mental: evolvedPlayer.mental,
+                    stamina: evolvedPlayer.stamina,
+                    condition: evolvedPlayer.condition,
+                    motivation: evolvedPlayer.motivation,
+                    experience: evolvedPlayer.experience,
+                    types: evolvedPlayer.types || null,
+                    special_abilities: evolvedPlayer.special_abilities || [],
+                    pokemon_stats: evolvedPlayer.pokemon_stats || null
+                  })
+                  .eq('id', evolvedPlayer.id);
+              } catch (e) {
+                console.error('Failed to persist evolved player:', e);
+              }
+            })();
+          }}
         />
       )}
     </div>

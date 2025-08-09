@@ -58,15 +58,20 @@ export function AdvancedEquipmentManager({
       experience_boost: 0
     };
 
-    Object.values(equipment).forEach(item => {
-      if (item && item.effects) {
-        Object.entries(item.effects).forEach(([key, value]) => {
-          if (typeof value === 'number') {
-            (totalEffects as any)[key] = (totalEffects as any)[key] || 0;
-            (totalEffects as any)[key] += value;
-          }
-        });
-      }
+    const equippedItems = [
+      equipment.racket,
+      equipment.shoes,
+      equipment.accessory,
+      equipment.pokemon_item
+    ].filter(Boolean) as Equipment[];
+
+    equippedItems.forEach(item => {
+      Object.entries(item.effects).forEach(([key, value]) => {
+        if (typeof value === 'number') {
+          (totalEffects as any)[key] = (totalEffects as any)[key] || 0;
+          (totalEffects as any)[key] += value;
+        }
+      });
     });
 
     return totalEffects;

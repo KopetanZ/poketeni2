@@ -279,7 +279,9 @@ export const RANDOM_EVENTS: GameEvent[] = [
     type: 'random',
     effects: {
       motivation_change: 8,
-      mental: 3
+      stats_change: {
+        mental: 3
+      }
     },
     probability_weight: 20
   }
@@ -308,20 +310,26 @@ export class EventSystem {
     month: number,
     reputation: number
   ): number {
-    let probability = EVENT_PROBABILITIES[baseType] || 0;
+    let probability: number = (EVENT_PROBABILITIES[baseType] as number) || 0;
     
     // 季節修正
     const season = this.getSeason(month);
     const seasonalMod = EVENT_PROBABILITIES.seasonal_modifiers[season];
-    if (seasonalMod && seasonalMod[baseType]) {
-      probability *= seasonalMod[baseType];
+    if (seasonalMod && (seasonalMod as any)[baseType]) {
+      const modifier = (seasonalMod as any)[baseType];
+      if (typeof modifier === 'number') {
+        probability = probability * modifier;
+      }
     }
     
     // 評判修正
     const reputationLevel = this.getReputationLevel(reputation);
     const reputationMod = EVENT_PROBABILITIES.reputation_modifiers[reputationLevel];
-    if (reputationMod && reputationMod[baseType]) {
-      probability *= reputationMod[baseType];
+    if (reputationMod && (reputationMod as any)[baseType]) {
+      const repModifier = (reputationMod as any)[baseType];
+      if (typeof repModifier === 'number') {
+        probability = probability * repModifier;
+      }
     }
     
     return Math.min(probability, 100); // 最大100%
