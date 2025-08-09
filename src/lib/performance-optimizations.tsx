@@ -215,7 +215,13 @@ export const BatchingHelpers = {
 // 画像最適化
 export const ImageOptimization = {
   // 遅延読み込み画像コンポーネント
-  LazyImage: ({ src, alt, placeholder, className, ...props }) => {
+  LazyImage: ({ src, alt, placeholder, className, ...props }: {
+    src: string;
+    alt: string;
+    placeholder?: string;
+    className?: string;
+    [key: string]: any;
+  }) => {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
     const imgRef = useRef<HTMLImageElement>(null);
@@ -264,6 +270,8 @@ export const ImageOptimization = {
     );
   }
 };
+
+ImageOptimization.LazyImage.displayName = 'LazyImage';
 
 // レスポンシブ対応
 export const ResponsiveHelpers = {

@@ -91,6 +91,8 @@ const MemberCard = React.memo<{
   </div>
 ));
 
+MemberCard.displayName = 'MemberCard';
+
 export const MemberList: React.FC<MemberListProps> = React.memo(({ players, onPlayerSelect }) => {
   const [selectedPosition, setSelectedPosition] = useState<string>('all');
   
@@ -237,5 +239,7 @@ export const MemberList: React.FC<MemberListProps> = React.memo(({ players, onPl
     </div>
   );
 });
+
+MemberList.displayName = 'MemberList';
 
 export default MemberList;

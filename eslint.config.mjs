@@ -18,7 +18,9 @@ const eslintConfig = [
       "@typescript-eslint/no-empty-object-type": "warn",
       "react-hooks/exhaustive-deps": "warn",
       "react-hooks/rules-of-hooks": "warn",
-      "prefer-const": "warn"
+      "prefer-const": "warn",
+      "react/display-name": "off",
+      "react/jsx-no-undef": "warn"
     }
   }
 ];

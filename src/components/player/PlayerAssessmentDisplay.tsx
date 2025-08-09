@@ -209,6 +209,8 @@ export const PlayerRankBadge = React.memo<{ player: Player }>(({ player }) => {
   );
 });
 
+PlayerRankBadge.displayName = 'PlayerRankBadge';
+
 // 査定比較コンポーネント
 export const AssessmentComparison = React.memo<{ players: Player[] }>(({ players }) => {
   const assessments = useMemo(() => {
@@ -260,3 +262,5 @@ export const AssessmentComparison = React.memo<{ players: Player[] }>(({ players
     </div>
   );
 });
+
+AssessmentComparison.displayName = 'AssessmentComparison';
