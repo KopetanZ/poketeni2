@@ -37,6 +37,19 @@ export class DataResetUtils {
         options.resetInventory = true;
       }
       
+      // 学校IDを取得（選手データ、進捗データ、アイテムデータの削除に必要）
+      let school: { id: string } | null = null;
+      if (options.resetPlayers || options.resetProgress || options.resetInventory) {
+        const { data: schoolData, error: schoolFetchError } = await supabase
+          .from('schools')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (schoolFetchError) throw new Error(`学校データ取得エラー: ${schoolFetchError.message}`);
+        school = schoolData;
+      }
+      
       // 学校データのリセット
       if (options.resetSchool) {
         const { error: schoolError } = await supabase
@@ -50,46 +63,86 @@ export class DataResetUtils {
       
       // 選手データのリセット
       if (options.resetPlayers) {
-        const { error: playersError } = await supabase
-          .from('players')
-          .delete()
-          .eq('user_id', userId);
-        
-        if (playersError) throw new Error(`選手データリセットエラー: ${playersError.message}`);
-        deletedTables.push('players');
+        if (school) {
+          // 学校IDに関連する選手データを削除
+          const { error: playersError } = await supabase
+            .from('players')
+            .delete()
+            .eq('school_id', school.id);
+          
+          if (playersError) throw new Error(`選手データリセットエラー: ${playersError.message}`);
+          deletedTables.push('players');
+        }
       }
       
       // 進捗データのリセット（カード使用履歴など）
       if (options.resetProgress) {
-        // カード使用履歴
-        const { error: cardsError } = await supabase
-          .from('card_usage_history')
-          .delete()
-          .eq('user_id', userId);
-        
-        if (cardsError) throw new Error(`カード履歴リセットエラー: ${cardsError.message}`);
-        deletedTables.push('card_usage_history');
+        if (school) {
+          // 手札カード
+          const { error: handCardsError } = await supabase
+            .from('hand_cards')
+            .delete()
+            .eq('school_id', school.id);
+          
+          if (handCardsError) throw new Error(`手札カードリセットエラー: ${handCardsError.message}`);
+          deletedTables.push('hand_cards');
+          
+          // カード使用履歴（存在する場合）
+          try {
+            const { error: cardsError } = await supabase
+              .from('card_usage_history')
+              .delete()
+              .eq('school_id', school.id);
+            
+            if (cardsError && cardsError.code !== '42P01') { // テーブルが存在しない場合は無視
+              throw new Error(`カード履歴リセットエラー: ${cardsError.message}`);
+            }
+            if (!cardsError) deletedTables.push('card_usage_history');
+          } catch (tableError: any) {
+            if (tableError.code !== '42P01') { // テーブルが存在しない場合は無視
+              console.warn('card_usage_history table not found, skipping...');
+            }
+          }
+        }
       }
       
       // アイテム・装備データのリセット
       if (options.resetInventory) {
-        // プレイヤー装備
-        const { error: equipmentError } = await supabase
-          .from('player_equipment')
-          .delete()
-          .eq('user_id', userId);
-        
-        if (equipmentError) throw new Error(`装備データリセットエラー: ${equipmentError.message}`);
-        deletedTables.push('player_equipment');
-        
-        // アイテム所持
-        const { error: inventoryError } = await supabase
-          .from('player_inventory')
-          .delete()
-          .eq('user_id', userId);
-        
-        if (inventoryError) throw new Error(`所持アイテムリセットエラー: ${inventoryError.message}`);
-        deletedTables.push('player_inventory');
+        if (school) {
+          // プレイヤー装備（存在する場合）
+          try {
+            const { error: equipmentError } = await supabase
+              .from('player_equipment')
+              .delete()
+              .eq('school_id', school.id);
+            
+            if (equipmentError && equipmentError.code !== '42P01') {
+              throw new Error(`装備データリセットエラー: ${equipmentError.message}`);
+            }
+            if (!equipmentError) deletedTables.push('player_equipment');
+          } catch (tableError: any) {
+            if (tableError.code !== '42P01') {
+              console.warn('player_equipment table not found, skipping...');
+            }
+          }
+          
+          // アイテム所持（存在する場合）
+          try {
+            const { error: inventoryError } = await supabase
+              .from('player_inventory')
+              .delete()
+              .eq('school_id', school.id);
+            
+            if (inventoryError && inventoryError.code !== '42P01') {
+              throw new Error(`所持アイテムリセットエラー: ${inventoryError.message}`);
+            }
+            if (!inventoryError) deletedTables.push('player_inventory');
+          } catch (tableError: any) {
+            if (tableError.code !== '42P01') {
+              console.warn('player_inventory table not found, skipping...');
+            }
+          }
+        }
       }
       
       return {
