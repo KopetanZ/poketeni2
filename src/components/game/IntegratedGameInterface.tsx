@@ -95,17 +95,16 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     setIsAdvancingDay(false);
   };
 
-  // カード使用処理
-  const handleCardUse = (card: TrainingCard) => {
+  // カード使用処理（子コンポーネントから計算済み結果を受け取る）
+  const handleCardUse = (result: CardUsageResult) => {
     try {
-      const result = gameFlow.useTrainingCard(card);
       setLastCardResult(result);
       setShowCardResult(true);
       syncGameState();
       
       // 成功時の通知
       if (result.success) {
-        setNotifications(prev => [...prev, `${card.name}: ${result.successLevel}`].slice(-5));
+        setNotifications(prev => [...prev, `${result.card.name}: ${result.successLevel}`].slice(-5));
       }
       
       // 緊急事態チェック

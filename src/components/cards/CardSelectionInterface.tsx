@@ -119,9 +119,7 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
     // 結果表示
     setUsageResult(result);
     
-    if (onCardUse) {
-      onCardUse(result);
-    }
+    onCardUse?.(result);
 
     // 使用したカードを一時的に除去
     setAvailableCards(prev => prev.filter(c => c.id !== card.id));
