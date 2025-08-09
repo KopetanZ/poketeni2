@@ -310,7 +310,7 @@ export class CharacterGenerationSystem {
     const specialAbilities = this.generateRandomSpecialAbilities(level, position);
     
     // プレイヤー作成
-    const player: Player = {
+    const player: any = {
       id: `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       pokemon_name: pokemonName,
       pokemon_id: pokemonId,

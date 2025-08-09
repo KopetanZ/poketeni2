@@ -38,7 +38,7 @@ interface PlayerRanking {
 }
 
 export default function DataRoomDashboard({ players, schoolStats }: DataRoomDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'players' | 'rankings' | 'analytics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'players' | 'rankings' | 'analytics' | 'achievements'>('overview');
 
   // 統計計算
   const calculateTeamStats = () => {

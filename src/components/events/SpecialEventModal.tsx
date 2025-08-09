@@ -148,7 +148,7 @@ export function SpecialEventModal({
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-blue-800 mb-2">対象ポケモン</h3>
                 <div className="flex items-center gap-3">
-                  <span className="text-xl">{player.types.join('/')}</span>
+                  <span className="text-xl">{player.types?.join('/') || 'なし'}</span>
                   <div>
                     <div className="font-medium">{player.pokemon_name}</div>
                     <div className="text-sm text-gray-600">Lv.{player.level}</div>
@@ -216,13 +216,13 @@ export function SpecialEventModal({
                         
                         {/* 効果表示 */}
                         <div className="flex flex-wrap gap-2">
-                          {choice.effects.success_rate_modifier !== 0 && (
+                          {(choice.effects.success_rate_modifier || 0) !== 0 && (
                             <span className={`text-xs px-2 py-1 rounded ${
-                              choice.effects.success_rate_modifier > 0 
+                              (choice.effects.success_rate_modifier || 0) > 0 
                                 ? 'bg-green-100 text-green-800' 
                                 : 'bg-red-100 text-red-800'
                             }`}>
-                              成功率 {choice.effects.success_rate_modifier > 0 ? '+' : ''}{Math.round(choice.effects.success_rate_modifier * 100)}%
+                              成功率 {(choice.effects.success_rate_modifier || 0) > 0 ? '+' : ''}{Math.round((choice.effects.success_rate_modifier || 0) * 100)}%
                             </span>
                           )}
                           
@@ -396,7 +396,7 @@ export function SpecialEventModal({
                       <div key={key} className="text-blue-700">
                         {key === 'experience' ? '経験値' :
                          key === 'reputation' ? '評判' :
-                         key === 'funds' ? '資金' : key}: +{value}
+                         key === 'funds' ? '資金' : key}: +{String(value)}
                       </div>
                     ))}
                   </div>

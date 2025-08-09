@@ -127,7 +127,7 @@ export default function EikanNineMainGame({
         ...squares[squareIndex],
         displayIndex: i,
         isCurrent: i === 0,
-        isNext: selectedCard && i === selectedCard.number
+        isNext: selectedCard ? i === selectedCard.number : undefined
       });
     }
     

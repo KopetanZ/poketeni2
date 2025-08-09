@@ -334,9 +334,9 @@ export default function EikanNineLayout({
                     aria-label="ユーザーメニューを開く"
                   >
                     <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-sm font-semibold">
-                      {user?.user_metadata?.name?.[0] || user?.email?.[0] || '👤'}
+                      {(user as any)?.user_metadata?.name?.[0] || user?.email?.[0] || '👤'}
                     </div>
-                    <span className="hidden sm:block">{user?.user_metadata?.name || user?.email || 'ゲスト'}</span>
+                    <span className="hidden sm:block">{(user as any)?.user_metadata?.name || user?.email || 'ゲスト'}</span>
                   </button>
 
                   {showUserMenu && (

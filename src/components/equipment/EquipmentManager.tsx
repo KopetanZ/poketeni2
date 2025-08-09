@@ -18,10 +18,11 @@ interface EquipmentManagerProps {
 export default function EquipmentManager({ player, onClose, onEquipmentChange }: EquipmentManagerProps) {
   const [activeView, setActiveView] = useState<'main' | 'workshop'>('main');
   const [playerEquipment, setPlayerEquipment] = useState<PlayerEquipment>({
-    racket: null,
-    shoes: null,
-    accessory: null,
-    pokemon_item: null
+    player_id: player.id,
+    racket: undefined,
+    shoes: undefined,
+    accessory: undefined,
+    pokemon_item: undefined
   });
   const [playerFunds, setPlayerFunds] = useState(15000); // 暫定的な資金
 
@@ -32,10 +33,11 @@ export default function EquipmentManager({ player, onClose, onEquipmentChange }:
   const loadPlayerData = () => {
     // 暫定的なデータ読み込み（実際はデータベースから）
     setPlayerEquipment({
+      player_id: player.id,
       racket: RACKET_EQUIPMENT_EXPANDED[0], // 初期装備
-      shoes: null,
-      accessory: null,
-      pokemon_item: null
+      shoes: undefined,
+      accessory: undefined,
+      pokemon_item: undefined
     });
   };
 
@@ -137,7 +139,7 @@ export default function EquipmentManager({ player, onClose, onEquipmentChange }:
                     <div className="flex-1">
                       <div className="text-xs text-gray-600">{slot.name}</div>
                       <div className="text-sm font-medium">
-                        {item ? item.name : '未装備'}
+                        {item ? (item as Equipment).name : '未装備'}
                       </div>
                     </div>
                   </div>
@@ -156,7 +158,7 @@ export default function EquipmentManager({ player, onClose, onEquipmentChange }:
       <AdvancedEquipmentManager
         player={player}
         onClose={() => setActiveView('main')}
-        onEquipmentChange={handleEquipmentUpdate}
+        onEquipmentChange={(playerId: string, equipment: PlayerEquipment) => handleEquipmentUpdate(equipment)}
         availableEquipment={RACKET_EQUIPMENT_EXPANDED}
         availableConsumables={[]}
         playerFunds={playerFunds}

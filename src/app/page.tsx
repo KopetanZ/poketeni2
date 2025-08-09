@@ -63,7 +63,7 @@ export default function Home() {
           gameData.currentDate,
           'win', // 暫定的
           0, // 暫定的な連勝数
-          gameData.school.reputation
+          gameData.school?.reputation || 0
         );
         setAvailableEventsCount(events.length);
       } catch (error) {
@@ -249,23 +249,23 @@ export default function Home() {
     console.log('Event completed:', outcome, player);
     
     // 特殊能力習得時の処理
-    if (outcome.success && outcome.learned_ability) {
+    if (outcome.success && (outcome as any).learned_ability) {
       // プレイヤーに特殊能力を追加
       if (!player.special_abilities) {
         player.special_abilities = [];
       }
-      player.special_abilities.push(outcome.learned_ability);
+      player.special_abilities.push((outcome as any).learned_ability);
       
       // TODO: データベース更新処理を実装
-      alert(`${player.pokemon_name}が「${outcome.learned_ability.name}」を習得しました！`);
+      alert(`${player.pokemon_name}が「${(outcome as any).learned_ability.name}」を習得しました！`);
     } else {
       alert(`${player.pokemon_name}は特殊能力の習得に失敗しました...でも経験は積めました`);
     }
 
     // 報酬処理
-    if (outcome.rewards_gained) {
+    if ((outcome as any).rewards_gained) {
       // TODO: 実際の報酬反映処理を実装
-      console.log('Rewards gained:', outcome.rewards_gained);
+      console.log('Rewards gained:', (outcome as any).rewards_gained);
     }
   };
 

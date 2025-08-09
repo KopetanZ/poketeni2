@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TrainingCard, CardUsageResult, RARITY_CONFIGS } from '../../lib/training-card-system';
+import { RARITY_CONFIGS } from '../../lib/training-card-system';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 
 interface TrainingCardDisplayProps {
-  card: TrainingCard;
-  onUse?: (card: TrainingCard) => void;
+  card: any;
+  onUse?: (card: any) => void;
   disabled?: boolean;
   playerStats?: {
     stamina: number;
@@ -27,7 +27,7 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
   schoolFunds = 0
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const rarityConfig = RARITY_CONFIGS[card.rarity];
+  const rarityConfig = (RARITY_CONFIGS as any)[card.rarity];
   
   // 使用可能かチェック
   const canUse = () => {
@@ -49,7 +49,7 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
       
       if (card.requirements.minStats) {
         for (const [stat, required] of Object.entries(card.requirements.minStats)) {
-          if (playerStats[stat] < required) return false;
+          if ((playerStats as any)[stat] < (required as number)) return false;
         }
       }
     }
@@ -124,7 +124,7 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
               <div key={skill} className="flex justify-between text-xs">
                 <span>{skill.replace('_skill', '').replace('_', ' ')}</span>
                 <Badge variant="secondary" className="text-xs px-1">
-                  +{Math.round(value * rarityConfig.effectMultiplier)}
+                  +{Math.round((value as number) * rarityConfig.effectMultiplier)}
                 </Badge>
               </div>
             ))}
@@ -134,7 +134,7 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
           {card.baseEffects.statusChanges && (
             <div className="mt-2 grid grid-cols-2 gap-1">
               {Object.entries(card.baseEffects.statusChanges).map(([status, value]) => {
-                const isNegative = value < 0;
+                const isNegative = (value as number) < 0;
                 return (
                   <div key={status} className="flex justify-between text-xs">
                     <span>{status === 'condition' ? '調子' : status === 'motivation' ? 'やる気' : status}</span>
@@ -142,7 +142,7 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
                       variant={isNegative ? "destructive" : "default"} 
                       className="text-xs px-1"
                     >
-                      {value > 0 ? '+' : ''}{value}
+                      {(value as number) > 0 ? '+' : ''}{String(value)}
                     </Badge>
                   </div>
                 );
@@ -184,10 +184,10 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
               )}
               {card.requirements.minStats && Object.entries(card.requirements.minStats).map(([stat, required]) => (
                 <div key={stat}>
-                  {stat.replace('_skill', '').replace('_', ' ')}: {required}以上
-                  {playerStats && playerStats[stat] < required && (
+                  {stat.replace('_skill', '').replace('_', ' ')}: {String(required)}以上
+                  {playerStats && (playerStats as any)[stat] < (required as number) && (
                     <span className="text-red-500 ml-1">
-                      (現在: {playerStats[stat]})
+                      (現在: {(playerStats as any)[stat]})
                     </span>
                   )}
                 </div>
@@ -221,7 +221,7 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
           <div>
             <h4 className="font-semibold text-sm mb-2 text-purple-600">特殊効果</h4>
             <div className="space-y-1">
-              {card.specialEffects.map((effect, index) => (
+              {card.specialEffects.map((effect: any, index: number) => (
                 <div key={index} className="text-xs p-2 bg-purple-50 rounded">
                   <div className="font-semibold text-purple-700">{effect.name}</div>
                   <div className="text-purple-600">{effect.description}</div>

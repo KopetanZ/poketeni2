@@ -775,11 +775,22 @@ export function generateAdvancedCPU(difficulty: 'easy' | 'normal' | 'hard' | 'ex
     sets_lost: 0,
     
     types: ['normal'],
-    pokemon_stats: pokemonStats,
+    pokemon_stats: pokemonStats || undefined,
     
     // CPU用特殊能力生成
-    special_abilities: generateCPUSpecialAbilities(level, difficulty)
-  };
+    special_abilities: generateCPUSpecialAbilities(level, difficulty),
+    
+    // 必要なPlayer型プロパティ
+    enrollmentYear: new Date().getFullYear(),
+    personality: 'balanced',
+    initialStats: {
+      serve_skill: pokemonStats?.final_stats.serve_skill || 50,
+      return_skill: pokemonStats?.final_stats.return_skill || 50,
+      volley_skill: pokemonStats?.final_stats.volley_skill || 50,
+      stroke_skill: pokemonStats?.final_stats.stroke_skill || 50,
+      mental: pokemonStats?.final_stats.mental || 50
+    }
+  } as any;
 }
 
 // CPU用特殊能力生成

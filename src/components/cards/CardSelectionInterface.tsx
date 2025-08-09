@@ -94,15 +94,15 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
       // スキル成長適用
       if (result.actualEffects.skillGrowth) {
         Object.entries(result.actualEffects.skillGrowth).forEach(([skill, growth]) => {
-          updatedPlayer[skill] = (updatedPlayer[skill] || 0) + growth;
+          (updatedPlayer as any)[skill] = ((updatedPlayer as any)[skill] || 0) + growth;
         });
       }
       
       // 状態変化適用
       if (result.actualEffects.statusChanges) {
         if (result.actualEffects.statusChanges.condition) {
-          updatedPlayer.condition = Math.max(0, Math.min(100, 
-            (updatedPlayer.condition || 50) + result.actualEffects.statusChanges.condition
+          (updatedPlayer as any).condition = Math.max(0, Math.min(100, 
+            ((updatedPlayer as any).condition || 50) + result.actualEffects.statusChanges.condition
           ));
         }
       }
@@ -258,7 +258,7 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
               key={`${card.id}-${index}`}
               card={card}
               onUse={handleCardUse}
-              playerStats={getPlayerStats()}
+              playerStats={getPlayerStats() as any}
               schoolFunds={schoolFunds}
             />
           ))}

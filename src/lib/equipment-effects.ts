@@ -76,12 +76,12 @@ export class EquipmentEffectsCalculator {
 
     Object.keys(newEquipment).forEach(slot => {
       const item = newEquipment[slot as keyof PlayerEquipment];
-      if (item && item.durability) {
-        const newDurability = Math.max(0, item.durability.current - (item.durability.degradePerMatch || 1) * degradeAmount);
+      if (item && (item as Equipment).durability) {
+        const newDurability = Math.max(0, ((item as Equipment).durability?.current || 100) - (((item as Equipment).durability?.degradePerMatch || 1) * degradeAmount));
         newEquipment[slot as keyof PlayerEquipment] = {
-          ...item,
+          ...(item as any),
           durability: {
-            ...item.durability,
+            ...(item as Equipment).durability,
             current: newDurability
           }
         };
@@ -229,7 +229,7 @@ export class EquipmentEffectsCalculator {
     };
 
     return availableEquipment.filter(equipment => {
-      const power = this.calculateEquipmentPower({ racket: equipment, shoes: null, accessory: null, pokemon_item: null }, playerLevel);
+      const power = this.calculateEquipmentPower({ player_id: 'dummy', racket: equipment, shoes: undefined, accessory: undefined, pokemon_item: undefined }, playerLevel);
       
       if (playerLevel <= 10) {
         return power <= 50; // 初心者は効果控えめ

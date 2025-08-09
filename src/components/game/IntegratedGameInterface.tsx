@@ -62,7 +62,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       syncGameState();
       
       // 通知の追加
-      const newNotifications = [];
+      const newNotifications: string[] = [];
       
       if (result.triggeredEvents.length > 0) {
         newNotifications.push(`イベント発生: ${result.triggeredEvents.length}件`);
@@ -139,7 +139,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     // 季節イベントの効果をゲーム状態に適用
     if (effects.schoolEffects) {
       Object.entries(effects.schoolEffects).forEach(([stat, change]) => {
-        gameState.schoolStats[stat] = (gameState.schoolStats[stat] || 0) + change;
+        (gameState.schoolStats as any)[stat] = ((gameState.schoolStats as any)[stat] || 0) + (change as number);
       });
     }
     
@@ -323,10 +323,10 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                               <div className="w-20 bg-gray-200 rounded-full h-2">
                                 <div 
                                   className="bg-blue-500 h-2 rounded-full"
-                                  style={{ width: `${Math.min((gameState.player[skill] || 0) / 100 * 100, 100)}%` }}
+                                  style={{ width: `${Math.min(((gameState.player as any)[skill] || 0) / 100 * 100, 100)}%` }}
                                 ></div>
                               </div>
-                              <span className="font-semibold w-10 text-right">{gameState.player[skill] || 0}</span>
+                              <span className="font-semibold w-10 text-right">{(gameState.player as any)[skill] || 0}</span>
                             </div>
                           </div>
                         ))}

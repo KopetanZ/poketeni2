@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CardUsageResult, RARITY_CONFIGS } from '../../lib/training-card-system';
+import { RARITY_CONFIGS } from '../../lib/training-card-system';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 
 interface CardUsageResultModalProps {
-  result: CardUsageResult;
+  result: any;
   onClose: () => void;
 }
 
@@ -18,7 +18,7 @@ export const CardUsageResultModal: React.FC<CardUsageResultModalProps> = ({
   const [animationPhase, setAnimationPhase] = useState<'revealing' | 'showing' | 'complete'>('revealing');
   const [showDetails, setShowDetails] = useState(false);
 
-  const rarityConfig = RARITY_CONFIGS[result.card.rarity];
+  const rarityConfig = (RARITY_CONFIGS as any)[result.card.rarity];
 
   useEffect(() => {
     // アニメーション段階的実行
@@ -153,7 +153,7 @@ export const CardUsageResultModal: React.FC<CardUsageResultModalProps> = ({
               <h3 className="font-bold text-purple-800 mb-3 flex items-center gap-2">
                 ⚡ 特殊効果発動！
               </h3>
-              {result.specialEffectsTriggered.map((effect, index) => (
+              {result.specialEffectsTriggered.map((effect: any, index: number) => (
                 <div key={index} className="mb-2">
                   <div className="font-semibold text-purple-700">{effect.name}</div>
                   <div className="text-sm text-purple-600">{effect.description}</div>
@@ -173,7 +173,7 @@ export const CardUsageResultModal: React.FC<CardUsageResultModalProps> = ({
                       {skill.replace('_skill', '').replace('_', ' ')}
                     </div>
                     <div className="text-xl font-bold text-blue-800">
-                      +{growth}
+                      +{String(growth)}
                     </div>
                   </div>
                 ))}
@@ -187,14 +187,14 @@ export const CardUsageResultModal: React.FC<CardUsageResultModalProps> = ({
               <h3 className="font-bold text-orange-800 mb-3">🎭 状態変化</h3>
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(result.actualEffects.statusChanges).map(([status, change]) => {
-                  const isPositive = change > 0;
+                  const isPositive = (change as number) > 0;
                   return (
                     <div key={status} className={`p-3 rounded-lg ${isPositive ? 'bg-green-50' : 'bg-red-50'}`}>
                       <div className={`font-semibold ${isPositive ? 'text-green-700' : 'text-red-700'}`}>
                         {status === 'condition' ? '調子' : status === 'motivation' ? 'やる気' : status}
                       </div>
                       <div className={`text-xl font-bold ${isPositive ? 'text-green-800' : 'text-red-800'}`}>
-                        {change > 0 ? '+' : ''}{change}
+                        {(change as number) > 0 ? '+' : ''}{String(change)}
                       </div>
                     </div>
                   );
@@ -247,7 +247,7 @@ export const CardUsageResultModal: React.FC<CardUsageResultModalProps> = ({
                       {effect === 'reputation' ? '評判' : effect === 'funds' ? '資金' : effect}
                     </div>
                     <div className="text-xl font-bold text-indigo-800">
-                      {effect === 'funds' ? `¥${value.toLocaleString()}` : `+${value}`}
+                      {effect === 'funds' ? `¥${(value as number).toLocaleString()}` : `+${value}`}
                     </div>
                   </div>
                 ))}

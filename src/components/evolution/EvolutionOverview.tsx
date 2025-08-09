@@ -173,7 +173,7 @@ export function EvolutionOverview({ players, onPlayerUpdate }: EvolutionOverview
                               {player.pokemon_name}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {player.types.join('・')}
+                              {player.types?.join('・') || 'なし'}
                             </div>
                           </div>
                         </div>

@@ -37,10 +37,11 @@ export function AdvancedEquipmentManager({
   const [activeTab, setActiveTab] = useState<'equipped' | 'inventory' | 'shop'>('equipped');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [currentEquipment, setCurrentEquipment] = useState<PlayerEquipment>({
-    racket: null,
-    shoes: null,
-    accessory: null,
-    pokemon_item: null
+    player_id: player.id,
+    racket: undefined,
+    shoes: undefined,
+    accessory: undefined,
+    pokemon_item: undefined
   });
   const [showComparisonModal, setShowComparisonModal] = useState(false);
   const [comparisonItem, setComparisonItem] = useState<Equipment | null>(null);
@@ -242,7 +243,7 @@ export function AdvancedEquipmentManager({
                       <div className="font-semibold text-gray-700">{slot.name}</div>
                       {currentEquipment[slot.slot as keyof PlayerEquipment] ? (
                         <div className="mt-2 text-sm text-blue-600">
-                          装備中: {currentEquipment[slot.slot as keyof PlayerEquipment]?.name}
+                          装備中: {(currentEquipment[slot.slot as keyof PlayerEquipment] as Equipment)?.name}
                         </div>
                       ) : (
                         <div className="mt-2 text-sm text-gray-500">未装備</div>
