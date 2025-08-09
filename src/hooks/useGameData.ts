@@ -423,93 +423,12 @@ export function useGameData() {
     return updatedPlayers;
   };
 
-  // カード使用（データベース連携版）
-  const useCard = async (cardId: string): Promise<boolean> => {
-    if (!user || !gameData.school) {
-      setError('認証またはゲームデータが不正です');
-      return false;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const card = gameData.cards.find(c => c.id === cardId);
-      if (!card) {
-        throw new Error('カードが見つかりません');
-      }
-
-      // 1. 日付を進行（データベース更新）
-      const currentDate = gameData.currentDate;
-      const newDate = DateManager.advanceDate(currentDate, card.number);
-      
-      // データベースの学校日付を更新
-      const { error: dateUpdateError } = await supabase
-        .from('schools')
-        .update({
-          current_year: newDate.year,
-          current_month: newDate.month,
-          current_day: newDate.day
-        })
-        .eq('id', gameData.school.id);
-
-      if (dateUpdateError) {
-        throw dateUpdateError;
-      }
-
-      // 2. 使用したカードを削除
-      const { error: deleteError } = await supabase
-        .from('hand_cards')
-        .delete()
-        .eq('school_id', gameData.school.id)
-        .eq('card_data->>id', cardId);
-
-      if (deleteError) {
-        throw deleteError;
-      }
-
-      // 3. 新しいカードを生成・追加
-      const newCard = CardGenerator.generateCard();
-      const { error: insertError } = await supabase
-        .from('hand_cards')
-        .insert({
-          school_id: gameData.school.id,
-          card_data: newCard
-        });
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      // 4. 選手の能力向上を適用
-      const updatedPlayers = await applyCardEffectsToPlayers(card, gameData.players);
-
-      // 5. 状態を更新
-      const updatedCards = gameData.cards
-        .filter(c => c.id !== cardId)
-        .concat([newCard]);
-
-      setGameData(prev => ({
-        ...prev,
-        cards: updatedCards,
-        players: updatedPlayers,
-        currentDate: newDate,
-        school: prev.school ? {
-          ...prev.school,
-          current_year: newDate.year,
-          current_month: newDate.month,
-          current_day: newDate.day
-        } : null
-      }));
-
-      return true;
-    } catch (err) {
-      console.error('Card use error:', err);
-      setError('カードの使用に失敗しました');
-      return false;
-    } finally {
-      setLoading(false);
-    }
+  // カード使用（旧ルート）
+  // 画面側は IntegratedGameInterface 経由の IntegratedGameFlow.useTrainingCard を利用するため、
+  // ここは後方互換のダミーとして成功を返すのみ（将来削除予定）。
+  const useCard = async (_cardId: string): Promise<boolean> => {
+    console.warn('useGameData.useCard is deprecated. Use IntegratedGameFlow via IntegratedGameInterface instead.');
+    return true;
   };
 
   return {
