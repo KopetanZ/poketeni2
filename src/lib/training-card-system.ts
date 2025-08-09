@@ -450,8 +450,11 @@ export class TrainingCardSystem {
       const availableCards = TRAINING_CARDS.filter(card => card.rarity === rarity);
       
       if (availableCards.length > 0) {
-        const selectedCard = availableCards[Math.floor(Math.random() * availableCards.length)];
-        droppedCards.push(selectedCard);
+        const base = availableCards[Math.floor(Math.random() * availableCards.length)];
+        // 同一カードが複数枚ドロップするケースに備え、インスタンスごとに一意IDを付与
+        const uniqueId = this.generateInstanceId(base.id);
+        const cloned: TrainingCard = { ...base, id: uniqueId };
+        droppedCards.push(cloned);
       }
     }
 
@@ -480,6 +483,12 @@ export class TrainingCardSystem {
     }
 
     return 'common'; // フォールバック
+  }
+
+  // インスタンスIDを生成（同一ベースカードでも重複しないID）
+  private static generateInstanceId(baseId: string): string {
+    const rand = Math.random().toString(36).slice(2, 8);
+    return `${baseId}_${Date.now()}_${rand}`;
   }
 
   // カード使用処理

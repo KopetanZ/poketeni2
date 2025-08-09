@@ -215,7 +215,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         }
       })();
       
-      // 1日に選べるカードは1枚: 使用後すぐに補充せず、次の日の頭で補充（UI側は isLoading を短時間ON/OFFで多重使用を防止）
+      // 1日に選べるカードは1枚: 使用後すぐに補充せず、次の日の頭で補充
       // ここでは state 同期のみ
       syncGameState();
       
@@ -313,21 +313,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
             </div>
             
             {/* 日付進行ボタン */}
-            <Button
-              onClick={handleAdvanceDay}
-              disabled={isAdvancingDay}
-              size="lg"
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3"
-            >
-              {isAdvancingDay ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  進行中...
-                </>
-              ) : (
-                '次の日へ'
-              )}
-            </Button>
+            {/* カード使用で自動進行するため、手動の次の日ボタンは非表示 */}
           </div>
         </div>
       </div>
