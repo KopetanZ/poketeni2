@@ -2,9 +2,9 @@
 
 export const MANAGER_IMAGE_PATHS: string[] = [
   // public/ 配下はそのままルート配下に配信される
-  "/img/mgr/ChatGPT Image 202587 12_34_08.png",
-  "/img/mgr/ChatGPT Image 202587 12_40_09.png",
-  "/img/mgr/ChatGPT Image 202587 12_41_06.png"
+  "/img/mgr/mgr1.png",
+  "/img/mgr/mgr2.png",
+  "/img/mgr/mgr3.png"
 ];
 
 export const MANAGER_TIPS: string[] = [
