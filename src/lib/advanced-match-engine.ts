@@ -4,7 +4,7 @@ import { Player } from '@/types/game';
 import { PokemonStats } from '@/types/pokemon-stats';
 import { getAbilityData, calculateAbilityBonus } from './pokemon-abilities-data';
 import { PokemonStatsCalculator } from './pokemon-stats-calculator';
-import { SpecialAbility, SpecialAbilityCalculator } from '@/types/special-abilities';
+import { SpecialAbility, SpecialAbilityCalculator, TENNIS_SPECIAL_ABILITIES } from '@/types/special-abilities';
 
 // 戦術システム
 export type TacticType = 
@@ -784,7 +784,7 @@ export function generateAdvancedCPU(difficulty: 'easy' | 'normal' | 'hard' | 'ex
 
 // CPU用特殊能力生成
 function generateCPUSpecialAbilities(level: number, difficulty: string): import('@/types/special-abilities').SpecialAbility[] {
-  const { TENNIS_SPECIAL_ABILITIES } = require('@/types/special-abilities');
+  // TENNIS_SPECIAL_ABILITIES is now imported at the top
   const abilities: import('@/types/special-abilities').SpecialAbility[] = [];
   
   // 難易度による特殊能力数と質の調整

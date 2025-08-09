@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player } from '@/types/game';
 import { CharacterGenerationSystem } from '@/lib/character-generation-system';
-import { Zap, Star, TrendingUp, Sparkles, Heart, ArrowUp, Target, Award } from 'lucide-react';
+import { Zap, Star, TrendingUp, Sparkles, Heart, ArrowUp, Target, Award, ArrowRight } from 'lucide-react';
 
 interface AwakeningEventProps {
   player: Player;
