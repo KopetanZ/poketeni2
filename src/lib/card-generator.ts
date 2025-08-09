@@ -28,7 +28,7 @@ function withDefaults(card: BaseCard): Omit<TrainingCard, 'id'> {
 export class CardGenerator {
   // 基本カードデータベース（栄冠ナイン準拠の半月進行）
   // number = すごろくでの移動マス数（半月単位、1年=24マス）
-  private static readonly CARD_DATABASE: Omit<TrainingCard, 'id'>[] = [
+  private static readonly RAW_CARDS: BaseCard[] = [
     // 基本練習カード（1マス = 約2週間）
     {
       name: 'サーブ練習',
@@ -154,7 +154,9 @@ export class CardGenerator {
       description: '1.5ヶ月の海外遠征で世界レベルの技術を習得',
       rarity: 'legendary'
     }
-  ].map(withDefaults);
+  ];
+
+  private static readonly CARD_DATABASE: Omit<TrainingCard, 'id'>[] = (CardGenerator.RAW_CARDS as BaseCard[]).map(withDefaults);
 
   // カード生成
   static generateCard(): TrainingCard {
