@@ -5,7 +5,7 @@ import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 // メモ化ヘルパー関数群
 export const MemoHelpers = {
   // 深い比較用のメモ化（オブジェクト/配列向け）
-  useDeepMemo: <T>(value: T, deps: any[]): T => {
+  useDeepMemo: <T extends any>(value: T, deps: any[]): T => {
     return useMemo(() => value, [JSON.stringify(deps)]);
   },
 
@@ -24,7 +24,7 @@ export const MemoHelpers = {
   },
 
   // 頻繁な状態更新の最適化（デバウンス）
-  useDebouncedState: <T>(initialValue: T, delay: number = 300): [T, (value: T) => void] => {
+  useDebouncedState: <T extends any>(initialValue: T, delay: number = 300): [T, (value: T) => void] => {
     const [state, setState] = useState(initialValue);
     const timeoutRef = useRef<NodeJS.Timeout>();
 
@@ -135,7 +135,7 @@ export const AnimationOptimizers = {
 // メモリ管理
 export const MemoryManagement = {
   // 大きなオブジェクトの遅延読み込み
-  useLazyLoad: <T>(loadFunction: () => Promise<T>, deps: any[]) => {
+  useLazyLoad: <T extends any>(loadFunction: () => Promise<T>, deps: any[]) => {
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -376,7 +376,7 @@ export const AccessibilityHelpers = {
 // キャッシュ戦略
 export const CacheStrategies = {
   // LRU キャッシュ実装
-  createLRUCache: <K, V>(maxSize: number) => {
+  createLRUCache: <K extends any, V extends any>(maxSize: number) => {
     const cache = new Map<K, V>();
 
     const get = (key: K): V | undefined => {
@@ -408,7 +408,7 @@ export const CacheStrategies = {
   },
 
   // セッションストレージ活用
-  useSessionCache: <T>(key: string, initialValue: T) => {
+  useSessionCache: <T extends any>(key: string, initialValue: T) => {
     const [value, setValue] = useState<T>(() => {
       try {
         const item = sessionStorage.getItem(key);
