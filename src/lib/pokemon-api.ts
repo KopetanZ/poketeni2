@@ -363,7 +363,8 @@ export class PokemonAPI {
     'ホエルオー': { id: 321, english: 'wailord', japanese: 'ホエルオー', type: ['water'], rarity: 'epic', generation: 3 },
     'ドンメル': { id: 322, english: 'numel', japanese: 'ドンメル', type: ['fire', 'ground'], rarity: 'uncommon', generation: 3 },
     'バクーダ': { id: 323, english: 'camerupt', japanese: 'バクーダ', type: ['fire', 'ground'], rarity: 'epic', generation: 3 },
-    'マグマッグ': { id: 324, english: 'torkoal', japanese: 'コータス', type: ['fire'], rarity: 'epic', generation: 3 },
+    // 修正: 324 はコータス（Torkoal）。第2世代のマグマッグ(218)とは重複しないように別名にしない
+    'コータス': { id: 324, english: 'torkoal', japanese: 'コータス', type: ['fire'], rarity: 'epic', generation: 3 },
     
     'バネブー': { id: 325, english: 'spoink', japanese: 'バネブー', type: ['psychic'], rarity: 'uncommon', generation: 3 },
     'ブーピッグ': { id: 326, english: 'grumpig', japanese: 'ブーピッグ', type: ['psychic'], rarity: 'rare', generation: 3 },
@@ -628,6 +629,22 @@ export class PokemonAPI {
   // 下位互換性
   static isValidStarter(pokemonName: string): boolean {
     return this.isValidPokemon(pokemonName);
+  }
+
+  // 追加: ランダムポケモン取得（件数指定）
+  static async fetchRandomPokemon(count: number = 1): Promise<PokemonDetails[]> {
+    const all = this.getAllPokemons();
+    const results: PokemonDetails[] = [];
+    const picks = [...all].sort(() => Math.random() - 0.5).slice(0, Math.max(1, count));
+    for (const name of picks) {
+      try {
+        const details = await this.getPokemonDetails(name);
+        results.push(details);
+      } catch {
+        // skip on error
+      }
+    }
+    return results;
   }
 }
 

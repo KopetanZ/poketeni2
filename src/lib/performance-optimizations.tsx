@@ -26,7 +26,7 @@ export const MemoHelpers = {
   // 頻繁な状態更新の最適化（デバウンス）
   useDebouncedState: function <T>(initialValue: T, delay: number = 300): [T, (value: T) => void] {
     const [state, setState] = useState(initialValue);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const debouncedSetState = useCallback((value: T) => {
       if (timeoutRef.current) {
@@ -70,8 +70,8 @@ export const AnimationOptimizers = {
   useRAFAnimation: (duration: number, easing: (t: number) => number = t => t) => {
     const [progress, setProgress] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
-    const rafRef = useRef<number>();
-    const startTimeRef = useRef<number>();
+    const rafRef = useRef<number | null>(null);
+    const startTimeRef = useRef<number | null>(null);
 
     const start = useCallback(() => {
       setIsRunning(true);
@@ -187,7 +187,7 @@ export const BatchingHelpers = {
   // 複数の状態更新をバッチ化
   useBatchedUpdates: () => {
     const updatesRef = useRef<(() => void)[]>([]);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     return useCallback((updateFunction: () => void) => {
       updatesRef.current.push(updateFunction);
@@ -271,7 +271,8 @@ export const ImageOptimization = {
   }
 };
 
-ImageOptimization.LazyImage.displayName = 'LazyImage';
+// 型の都合上キャストして displayName を設定
+(ImageOptimization.LazyImage as any).displayName = 'LazyImage';
 
 // レスポンシブ対応
 export const ResponsiveHelpers = {
@@ -394,8 +395,10 @@ export const CacheStrategies = {
         cache.delete(key);
       } else if (cache.size >= maxSize) {
         // 最も古い要素を削除
-        const firstKey = cache.keys().next().value;
-        cache.delete(firstKey);
+        const iter = cache.keys().next();
+        if (!iter.done) {
+          cache.delete(iter.value as K);
+        }
       }
       cache.set(key, value);
     };
@@ -435,7 +438,7 @@ export const CacheStrategies = {
 export const DebugHelpers = {
   // レンダリング回数トラッキング
   useRenderCount: (componentName: string) => {
-    const renderCount = useRef(0);
+    const renderCount = useRef<number>(0);
     renderCount.current += 1;
 
     useEffect(() => {
@@ -447,7 +450,7 @@ export const DebugHelpers = {
 
   // プロップス変更トラッキング
   useWhyDidYouUpdate: (name: string, props: Record<string, any>) => {
-    const previousProps = useRef<Record<string, any>>();
+    const previousProps = useRef<Record<string, any> | null>(null);
 
     useEffect(() => {
       if (previousProps.current) {
@@ -475,7 +478,7 @@ export const DebugHelpers = {
 
 // パフォーマンス監視フック
 export const usePerformanceMonitor = (componentName: string) => {
-  const startTime = useRef<number>();
+  const startTime = useRef<number | null>(null);
 
   useEffect(() => {
     startTime.current = performance.now();

@@ -579,7 +579,7 @@ export class TrainingCardSystem {
     successLevel: CardUsageResult['successLevel'],
     specialEffects: SpecialCardEffect[]
   ): string {
-    const messages = {
+    const messages: Record<CardUsageResult['successLevel'], string[]> = {
       failure: [
         `${card.name}は失敗に終わった...`,
         `うまくいかなかったが、経験にはなった`,

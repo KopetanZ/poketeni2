@@ -313,6 +313,7 @@ export default function Home() {
               facilities: 50
             }}
             allPlayers={players}
+            schoolId={school.id}
           />
         </div>
       )}

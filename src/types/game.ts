@@ -2,6 +2,7 @@
 
 import { PokemonStats } from './pokemon-stats';
 import { SpecialAbility } from './special-abilities';
+import { TrainingCard as IntegratedTrainingCard } from './training-cards';
 
 // PokeAPI関連型定義
 export interface PokemonDetails {
@@ -131,32 +132,7 @@ export interface School {
   current_day: number;
 }
 
-// カードシステム
-export interface TrainingCard {
-  id: string;
-  name: string;
-  type: 'training' | 'special' | 'event';
-  number: number; // 進行日数
-  rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
-  description: string;
-  
-  // 効果
-  trainingEffects: {
-    serve?: number;
-    return?: number;
-    volley?: number;
-    stroke?: number;
-    mental?: number;
-    stamina?: number;
-  };
-  
-  specialEffects?: {
-    conditionRecovery?: number;
-    trustIncrease?: number;
-    practiceEfficiencyBoost?: number;
-    teamMoraleBoost?: boolean;
-  };
-}
+// カードシステム型は `src/types/training-cards.ts` に集約
 
 // 新入生候補（スカウト対象）
 export interface NewStudentCandidate {
@@ -229,7 +205,7 @@ export interface GenerationSystem {
 export interface GameState {
   school: School;
   players: Player[];
-  hand_cards: TrainingCard[];
+  hand_cards: IntegratedTrainingCard[];
   current_date: GameDate;
   generation: GenerationSystem; // 世代交代システム追加
 }

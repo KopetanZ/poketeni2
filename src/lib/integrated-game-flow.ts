@@ -250,10 +250,13 @@ export class IntegratedGameFlow {
       const multiplier = squareEffect.effects.practiceEfficiency / 100;
       
       if (result.actualEffects.skillGrowth) {
-        Object.keys(result.actualEffects.skillGrowth).forEach(skill => {
-          result.actualEffects.skillGrowth![skill] = Math.round(
-            result.actualEffects.skillGrowth![skill] * multiplier
-          );
+        const skillGrowth = result.actualEffects.skillGrowth;
+        const keys = ['serve_skill', 'return_skill', 'volley_skill', 'stroke_skill', 'mental', 'stamina'] as const;
+        keys.forEach(key => {
+          const current = skillGrowth[key];
+          if (typeof current === 'number') {
+            skillGrowth[key] = Math.round(current * multiplier);
+          }
         });
       }
     }
@@ -392,9 +395,9 @@ export class IntegratedGameFlow {
       );
 
       if (result.actualEffects.statusChanges?.condition) {
-        (player as any).condition = Math.max(0, Math.min(100,
-          ((player as any).condition || 50) + result.actualEffects.statusChanges.condition
-        ));
+        const currentScore = this.getConditionScore(player.condition);
+        const newScore = currentScore + result.actualEffects.statusChanges.condition;
+        player.condition = this.scoreToCondition(newScore);
       }
 
       // 経験値追加（全員に同じ量）
@@ -409,15 +412,37 @@ export class IntegratedGameFlow {
   private applyChoiceOutcome(outcome: ChoiceOutcome): void {
     // プレイヤー効果
     if (outcome.actualEffects.playerChanges) {
+      const numericPlayerKeys = [
+        'serve_skill',
+        'return_skill',
+        'volley_skill',
+        'stroke_skill',
+        'mental',
+        'stamina',
+        'motivation',
+        'experience',
+        'level'
+      ] as const;
+      type NumericPlayerKey = typeof numericPlayerKeys[number];
       Object.entries(outcome.actualEffects.playerChanges).forEach(([stat, change]) => {
-        this.gameState.player[stat] = (this.gameState.player[stat] || 0) + change;
+        if ((numericPlayerKeys as readonly string[]).includes(stat)) {
+          const key = stat as NumericPlayerKey;
+          const current = (this.gameState.player[key] ?? 0) as number;
+          this.gameState.player[key] = current + change as any;
+        }
       });
     }
 
     // 学校効果
     if (outcome.actualEffects.schoolChanges) {
+      const schoolKeys = ['funds', 'reputation', 'facilities'] as const;
+      type SchoolKey = typeof schoolKeys[number];
       Object.entries(outcome.actualEffects.schoolChanges).forEach(([stat, change]) => {
-        this.gameState.schoolStats[stat] = (this.gameState.schoolStats[stat] || 0) + change;
+        if ((schoolKeys as readonly string[]).includes(stat)) {
+          const key = stat as SchoolKey;
+          const current = (this.gameState.schoolStats[key] ?? 0) as number;
+          this.gameState.schoolStats[key] = current + change;
+        }
       });
     }
 
@@ -488,7 +513,7 @@ export class IntegratedGameFlow {
   private getPlayerStats(): any {
     return {
       stamina: this.gameState.player.stamina || 100,
-      motivation: this.gameState.player.condition || 50,
+      motivation: this.gameState.player.motivation || 50,
       level: this.gameState.player.level || 1,
       experience: this.gameState.player.experience || 0,
       serve_skill: this.gameState.player.serve_skill || 0,
@@ -499,12 +524,38 @@ export class IntegratedGameFlow {
     };
   }
 
+  private getConditionScore(condition: Player['condition'] | undefined): number {
+    switch (condition) {
+      case 'excellent':
+        return 100;
+      case 'good':
+        return 75;
+      case 'normal':
+        return 50;
+      case 'poor':
+        return 25;
+      case 'terrible':
+        return 10;
+      default:
+        return 50;
+    }
+  }
+
+  private scoreToCondition(score: number): Player['condition'] {
+    const clamped = Math.max(0, Math.min(100, score));
+    if (clamped >= 85) return 'excellent';
+    if (clamped >= 65) return 'good';
+    if (clamped >= 45) return 'normal';
+    if (clamped >= 25) return 'poor';
+    return 'terrible';
+  }
+
   private calculateTeamMorale(): number {
     // 学校評判、プレイヤーの調子、最近の成功などからチーム士気を計算
     let morale = 50;
     
     morale += Math.min(this.gameState.schoolStats.reputation / 2, 25);
-    morale += Math.min((this.gameState.player.condition || 50) / 2, 25);
+    morale += Math.min(this.getConditionScore(this.gameState.player.condition) / 2, 25);
     
     // 最近の成功による修正
     const recentSuccesses = this.gameState.choiceHistory
@@ -558,14 +609,15 @@ export class IntegratedGameFlow {
     type: 'stamina_depletion' | 'funds_shortage' | 'reputation_crisis';
     autoActions: string[];
     forcedChoices: StrategicChoice[];
-  } {
+  } | null {
     const player = this.gameState.player;
     const school = this.gameState.schoolStats;
 
     if (player.stamina <= 0) {
       // 強制休養
       player.stamina = 20;
-      player.condition = Math.max(0, (player.condition || 50) - 10);
+      const newCondScore = this.getConditionScore(player.condition) - 10;
+      player.condition = this.scoreToCondition(newCondScore);
       
       return {
         type: 'stamina_depletion',

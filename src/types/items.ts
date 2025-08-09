@@ -29,6 +29,8 @@ export interface Equipment extends BaseItem {
     degradePerMatch: number;
   };
   pokemonCompatible?: number[]; // 特定のポケモンID専用
+  // 装備固有の特殊効果（ID）
+  specialAbility?: string;
 }
 
 // 消耗品アイテム
@@ -36,7 +38,7 @@ export interface ConsumableItem extends BaseItem {
   category: 'consumable';
   consumableType: 'recovery' | 'training' | 'motivation' | 'special';
   effects: {
-    condition_change?: 'excellent' | 'good' | 'normal' | 'poor' | 'terrible';
+    condition_change?: 'excellent' | 'good' | 'normal' | 'poor' | 'terrible' | 'slight_improvement';
     motivation_change?: number;
     instant_stats?: {
       serve_skill?: number;
@@ -47,9 +49,22 @@ export interface ConsumableItem extends BaseItem {
       stamina?: number;
     };
     experience_gain?: number;
+    // 永続上昇（努力値相当の演出）
+    permanent_stats?: {
+      serve_skill?: number;
+      return_skill?: number;
+      volley_skill?: number;
+      stroke_skill?: number;
+      mental?: number;
+      stamina?: number;
+    };
+    // 一時的な練習効率ボーナス
+    training_boost?: number; // %
+    duration?: number; // 日数
   };
   stackable: boolean;
   maxStack: number;
+  usageLimit?: { per_pokemon?: number };
 }
 
 // 施設アイテム（栄冠ナイン式）
@@ -61,6 +76,15 @@ export interface FacilityItem extends BaseItem {
     injury_prevention?: number;   // 怪我予防%
     motivation_maintenance?: number; // モチベーション維持
     special_training_unlock?: string[]; // 特別練習解放
+    // 種別ごとの練習ブースト
+    serve_training_boost?: number;
+    return_training_boost?: number;
+    volley_training_boost?: number;
+    stroke_training_boost?: number;
+    stamina_training_boost?: number;
+    mental_training_boost?: number;
+    // コンディション回復
+    condition_recovery?: number;
   };
   durability: {
     max: number;
@@ -82,6 +106,8 @@ export interface SpecialItem extends BaseItem {
     random_event_chance?: number;
     unlock_feature?: string;
     cosmetic_effect?: string;
+    duration?: number;
+    instant_levelup?: number;
   };
   oneTimeUse: boolean;
 }
@@ -96,7 +122,7 @@ export interface PlayerInventory {
 
 // プレイヤーの装備状態
 export interface PlayerEquipment {
-  player_id: string;
+  player_id?: string;
   racket?: Equipment;
   shoes?: Equipment;
   accessory?: Equipment;

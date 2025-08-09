@@ -29,12 +29,14 @@ interface IntegratedGameInterfaceProps {
     facilities: number;
   };
   allPlayers?: Player[];
+  schoolId?: string;
 }
 
 export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = ({
   initialPlayer,
   initialSchoolStats,
-  allPlayers
+  allPlayers,
+  schoolId
 }) => {
   // ゲームフロー管理
   const [gameFlow] = useState(() => new IntegratedGameFlow(initialPlayer, initialSchoolStats, allPlayers));
@@ -94,15 +96,11 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         }
       }
       
-      if (result.availableChoices.length > 0) {
-        newNotifications.push('重要な選択が発生しました');
-        setShowStrategicChoice(true);
-      }
+      // 選択肢は自動化ポリシーにより表示しない
       
       // 季節イベント表示
-      if (result.newDay.seasonalEvent) {
-        setShowSeasonalEvent(true);
-      }
+      // 季節イベントはモーダル表示せず通知のみ
+      if (result.newDay.seasonalEvent) newNotifications.push('季節イベント発生');
       
       // 日進行後に進化可能チェック（新規のみ）
       try {
@@ -130,6 +128,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
   // カード使用処理（すごろく進行対応）
   const handleCardUse = (cardId: string) => {
+    setIsAdvancingDay(true);
     try {
       const card = gameState.availableCards.find(c => c.id === cardId);
       if (!card) return;
@@ -141,6 +140,31 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       setShowCardResult(true);
       syncGameState();
       
+      // プレイヤー能力・経験値の永続化（全部員対象）
+      (async () => {
+        try {
+          const stateAfter = gameFlow.getGameState();
+          const playersToPersist = stateAfter.allPlayers || [stateAfter.player];
+          for (const p of playersToPersist) {
+            await supabase
+              .from('players')
+              .update({
+                serve_skill: p.serve_skill,
+                return_skill: p.return_skill,
+                volley_skill: p.volley_skill,
+                stroke_skill: p.stroke_skill,
+                mental: p.mental,
+                stamina: p.stamina,
+                experience: p.experience,
+                level: p.level
+              })
+              .eq('id', p.id);
+          }
+        } catch (e) {
+          console.error('Failed to persist card training player updates:', e);
+        }
+      })();
+
       // 進行結果の通知
       const progressNotifications: string[] = [];
       if (result.success) {
@@ -168,6 +192,28 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       } catch {}
 
       setNotifications(prev => [...prev, ...progressNotifications].slice(-5));
+
+      // 学校日付・学校ステータスの永続化
+      (async () => {
+        try {
+          const current = gameFlow.getCurrentDay();
+          const after = gameFlow.getGameState();
+          if (schoolId) {
+            await supabase
+              .from('schools')
+              .update({
+                current_year: current.year,
+                current_month: current.month,
+                current_day: current.day,
+                funds: after.schoolStats.funds,
+                reputation: after.schoolStats.reputation
+              })
+              .eq('id', schoolId);
+          }
+        } catch (e) {
+          console.error('Failed to persist school date/stats:', e);
+        }
+      })();
       
       // 1日に選べるカードは1枚: 使用後すぐに補充せず、次の日の頭で補充（UI側は isLoading を短時間ON/OFFで多重使用を防止）
       // ここでは state 同期のみ
@@ -182,6 +228,8 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     } catch (error) {
       console.error('Error using card:', error);
       setNotifications(prev => [...prev, 'カード使用エラー'].slice(-5));
+    } finally {
+      setIsAdvancingDay(false);
     }
   };
 
@@ -340,12 +388,12 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 cards={gameState.availableCards.map(card => ({
                   id: card.id,
                   name: card.name,
-                  type: 'training' as const,
+                  // type は TrainingCard 型には存在しないので除去
                   number: card.number,
                   rarity: card.rarity,
                   description: card.description,
                   trainingEffects: Object.entries(card.baseEffects.skillGrowth || {}).reduce((acc, [key, value]) => {
-                    if (value !== undefined) {
+                    if (typeof value === 'number') {
                       acc[key] = value;
                     }
                     return acc;
@@ -469,23 +517,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       </div>
 
       {/* モーダル群 */}
-      {showStrategicChoice && gameState.activeChoice && (
-        <StrategicChoiceModal
-          choice={gameState.activeChoice}
-          playerStats={gameState.player}
-          schoolStats={gameState.schoolStats}
-          environmentFactors={{
-            weather: gameState.currentDay.weather,
-            courtCondition: gameState.currentDay.courtCondition,
-            teamMorale: 70 // TODO: 実際の計算
-          }}
-          onChoiceComplete={(outcome) => {
-            handleStrategicChoice(gameState.activeChoice!, outcome.selectedRoute);
-            setShowStrategicChoice(false);
-          }}
-          onClose={() => setShowStrategicChoice(false)}
-        />
-      )}
+      {/* 選択モーダルは使用しない（自動化） */}
 
       {showCardResult && lastCardResult && (
         <CardUsageResultModal
@@ -497,15 +529,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         />
       )}
 
-      {showSeasonalEvent && gameState.currentDay.seasonalEvent && (
-        <SeasonalEventModal
-          event={gameState.currentDay.seasonalEvent}
-          schoolFunds={gameState.schoolStats.funds}
-          schoolReputation={gameState.schoolStats.reputation}
-          onEventComplete={handleSeasonalEvent}
-          onClose={() => setShowSeasonalEvent(false)}
-        />
-      )}
+      {/* 季節イベントモーダルは使用しない（自動化） */}
 
       {/* 進化モーダル */}
       {evolutionTarget && (

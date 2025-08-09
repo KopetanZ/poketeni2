@@ -115,4 +115,13 @@ export class DateManager {
     ];
     return monthNames[month] || '';
   }
+
+  // 追加: 現在日付の簡易文字列 (YYYY/MM/DD)
+  static getCurrentDateString(): string {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}/${m}/${d}`;
+  }
 }

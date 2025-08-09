@@ -233,11 +233,11 @@ export class ScoutingSystem {
   }
 
   // レア度に基づくポケモン選択
-  private static async selectPokemonByRarity(rarity: string): Promise<string | null> {
+  private static async selectPokemonByRarity(rarity: string): Promise<string> {
     const allPokemon = PokemonAPI.getAllPokemons();
     // TODO: ここでレア度フィルタリングを実装（PokemonAPIから取得）
     // 現在は簡単なランダム選択
-    if (allPokemon.length === 0) return null;
+    if (allPokemon.length === 0) return 'フシギダネ';
     return allPokemon[Math.floor(Math.random() * allPokemon.length)];
   }
 

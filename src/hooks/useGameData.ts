@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { DateManager } from '@/lib/date-manager';
 import { CardGenerator } from '@/lib/card-generator';
 import { PlayerGenerator } from '@/lib/player-generator';
-import { GameDate, School, TrainingCard, Player } from '@/types/game';
+import { GameDate, School, Player } from '@/types/game';
+import { TrainingCard } from '@/types/training-cards';
 
 interface GameData {
   school: School | null;
@@ -353,22 +354,23 @@ export function useGameData() {
       const player = { ...updatedPlayers[i] };
       let hasChanges = false;
 
-      // 各練習効果を適用
-      Object.entries(card.trainingEffects).forEach(([skill, improvement]) => {
-        const skillValue = improvement as number;
+      // 各練習効果を適用（training-cards.ts の構造に合わせる）
+      const growth = (card as any).baseEffects?.skillGrowth || {};
+      Object.entries(growth).forEach(([skill, improvement]) => {
+        const skillValue = (improvement as number) || 0;
         if (skillValue > 0) {
           hasChanges = true;
           switch (skill) {
-            case 'serve':
+            case 'serve_skill':
               player.serve_skill = Math.min(player.serve_skill + skillValue, 100);
               break;
-            case 'return':
+            case 'return_skill':
               player.return_skill = Math.min(player.return_skill + skillValue, 100);
               break;
-            case 'volley':
+            case 'volley_skill':
               player.volley_skill = Math.min(player.volley_skill + skillValue, 100);
               break;
-            case 'stroke':
+            case 'stroke_skill':
               player.stroke_skill = Math.min(player.stroke_skill + skillValue, 100);
               break;
             case 'mental':
@@ -405,7 +407,8 @@ export function useGameData() {
             stroke_skill: player.stroke_skill,
             mental: player.mental,
             stamina: player.stamina,
-            experience: player.experience
+            experience: player.experience,
+            level: player.level
           })
           .eq('id', player.id);
 

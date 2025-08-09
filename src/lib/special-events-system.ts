@@ -389,7 +389,7 @@ export class SpecialEventsSystem {
     }
 
     // ポケモンタイプ条件
-    if (conditions.pokemon_types && !conditions.pokemon_types.some(type => player.types.includes(type))) {
+    if (conditions.pokemon_types && !conditions.pokemon_types.some(type => (player.types || []).includes(type))) {
       return false;
     }
 

@@ -1,13 +1,22 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { TrainingCard } from '@/types/game';
+import { CardRarity } from '@/types/training-cards';
 import { MANAGER_IMAGE_PATHS, MANAGER_TIPS } from '@/lib/manager-assets';
 import { SQUARE_EFFECTS } from '@/lib/calendar-system';
 import { CalendarDay } from '@/types/calendar';
 
+interface BoardCard {
+  id: string;
+  name: string;
+  number: number;
+  rarity: CardRarity;
+  description: string;
+  trainingEffects: Record<string, number>;
+}
+
 interface SugorokuTrainingBoardProps {
-  cards: TrainingCard[];
+  cards: BoardCard[];
   onCardUse: (cardId: string) => void;
   isLoading?: boolean;
   currentProgress?: number; // 現在の進行度（日数）
@@ -36,8 +45,8 @@ export default function SugorokuTrainingBoard({
   specialEvents = [],
   peekDays
 }: SugorokuTrainingBoardProps) {
-  const [selectedCard, setSelectedCard] = useState<TrainingCard | null>(null);
-  const [hoverCard, setHoverCard] = useState<TrainingCard | null>(null);
+  const [selectedCard, setSelectedCard] = useState<BoardCard | null>(null);
+  const [hoverCard, setHoverCard] = useState<BoardCard | null>(null);
   const [showEventDetails, setShowEventDetails] = useState<SpecialEvent | null>(null);
 
   // 上部に横カレンダートラック（2週間=14日ぶん表示）

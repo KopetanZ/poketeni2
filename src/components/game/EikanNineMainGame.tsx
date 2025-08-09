@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrainingCard, Player } from '@/types/game';
+import { Player } from '@/types/game';
+import { TrainingCard } from '@/types/training-cards';
 import PokemonCard from '@/components/PokemonCard';
 import { useSoundSystem, SoundControls } from '@/lib/sound-system';
 

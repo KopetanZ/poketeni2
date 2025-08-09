@@ -239,7 +239,29 @@ export class PlayerGenerator {
       pokemon_stats: pokemonStats,
       
       // 特殊能力（レベルと基本能力に応じて生成）
-      special_abilities: []
+      special_abilities: [],
+
+      // 新規追加必須フィールド（デフォルト初期化）
+      enrollmentYear: new Date().getFullYear(),
+      personality: 'hardworker',
+      initialStats: {
+        serve_skill: pokemonStats.final_stats.serve_skill,
+        return_skill: pokemonStats.final_stats.return_skill,
+        volley_skill: pokemonStats.final_stats.volley_skill,
+        stroke_skill: pokemonStats.final_stats.stroke_skill,
+        mental: pokemonStats.final_stats.mental,
+        stamina: pokemonStats.final_stats.stamina,
+        average: Math.round(
+          (
+            pokemonStats.final_stats.serve_skill +
+            pokemonStats.final_stats.return_skill +
+            pokemonStats.final_stats.volley_skill +
+            pokemonStats.final_stats.stroke_skill +
+            pokemonStats.final_stats.mental +
+            pokemonStats.final_stats.stamina
+          ) / 6
+        )
+      }
     };
   }
 
@@ -290,7 +312,29 @@ export class PlayerGenerator {
       types: pokemon.types || ['normal'],
       
       // 新しい個体値システム
-      pokemon_stats: pokemonStats
+      pokemon_stats: pokemonStats,
+
+      // 新規追加必須フィールド
+      enrollmentYear: new Date().getFullYear(),
+      personality: 'hardworker',
+      initialStats: {
+        serve_skill: pokemonStats.final_stats.serve_skill,
+        return_skill: pokemonStats.final_stats.return_skill,
+        volley_skill: pokemonStats.final_stats.volley_skill,
+        stroke_skill: pokemonStats.final_stats.stroke_skill,
+        mental: pokemonStats.final_stats.mental,
+        stamina: pokemonStats.final_stats.stamina,
+        average: Math.round(
+          (
+            pokemonStats.final_stats.serve_skill +
+            pokemonStats.final_stats.return_skill +
+            pokemonStats.final_stats.volley_skill +
+            pokemonStats.final_stats.stroke_skill +
+            pokemonStats.final_stats.mental +
+            pokemonStats.final_stats.stamina
+          ) / 6
+        )
+      }
     };
   }
 
@@ -338,7 +382,29 @@ export class PlayerGenerator {
       
       types: ['normal'],
       
-      special_abilities: []
+      special_abilities: [],
+
+      // 新規追加必須フィールド
+      enrollmentYear: new Date().getFullYear(),
+      personality: 'hardworker',
+      initialStats: {
+        serve_skill: balancedStats.serve_skill,
+        return_skill: balancedStats.return_skill,
+        volley_skill: balancedStats.volley_skill,
+        stroke_skill: balancedStats.stroke_skill,
+        mental: balancedStats.mental,
+        stamina: balancedStats.stamina,
+        average: Math.round(
+          (
+            balancedStats.serve_skill +
+            balancedStats.return_skill +
+            balancedStats.volley_skill +
+            balancedStats.stroke_skill +
+            balancedStats.mental +
+            balancedStats.stamina
+          ) / 6
+        )
+      }
     };
   }
 
@@ -578,7 +644,29 @@ export class PlayerGenerator {
       types: ['normal'], // デフォルト、実際には種族データから取得すべき
 
       // 個体値システム
-      pokemon_stats: pokemonStats
+      pokemon_stats: pokemonStats,
+
+      // 新規追加必須フィールド
+      enrollmentYear: new Date().getFullYear(),
+      personality: 'hardworker',
+      initialStats: {
+        serve_skill: pokemonStats.final_stats.serve_skill,
+        return_skill: pokemonStats.final_stats.return_skill,
+        volley_skill: pokemonStats.final_stats.volley_skill,
+        stroke_skill: pokemonStats.final_stats.stroke_skill,
+        mental: pokemonStats.final_stats.mental,
+        stamina: pokemonStats.final_stats.stamina,
+        average: Math.round(
+          (
+            pokemonStats.final_stats.serve_skill +
+            pokemonStats.final_stats.return_skill +
+            pokemonStats.final_stats.volley_skill +
+            pokemonStats.final_stats.stroke_skill +
+            pokemonStats.final_stats.mental +
+            pokemonStats.final_stats.stamina
+          ) / 6
+        )
+      }
     };
   }
 
@@ -667,7 +755,29 @@ export class PlayerGenerator {
         sets_lost: 0,
         
         types: ['normal'],
-        special_abilities: []
+        special_abilities: [],
+
+        // 新規追加必須フィールド
+        enrollmentYear: new Date().getFullYear(),
+        personality: 'hardworker',
+        initialStats: {
+          serve_skill: balancedStats.serve_skill,
+          return_skill: balancedStats.return_skill,
+          volley_skill: balancedStats.volley_skill,
+          stroke_skill: balancedStats.stroke_skill,
+          mental: balancedStats.mental,
+          stamina: balancedStats.stamina,
+          average: Math.round(
+            (
+              balancedStats.serve_skill +
+              balancedStats.return_skill +
+              balancedStats.volley_skill +
+              balancedStats.stroke_skill +
+              balancedStats.mental +
+              balancedStats.stamina
+            ) / 6
+          )
+        }
       };
     });
   }

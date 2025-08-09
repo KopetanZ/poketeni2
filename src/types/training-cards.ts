@@ -84,6 +84,8 @@ export interface CardRequirements {
     return_skill?: number;
     volley_skill?: number;
     stroke_skill?: number;
+    mental?: number;
+    stamina?: number;
   };
   
   // 状況条件

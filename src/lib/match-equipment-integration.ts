@@ -216,12 +216,7 @@ export class MatchEquipmentIntegrator {
     const reasoning: string[] = [];
     
     // 基本的な推奨装備（実装は簡略化）
-    const recommended: PlayerEquipment = {
-      racket: null,
-      shoes: null,
-      accessory: null,
-      pokemon_item: null
-    };
+    const recommended: PlayerEquipment = {};
 
     // 対戦相手の特徴に基づく推奨
     if (opponent.serve_skill > 70) {
@@ -253,9 +248,14 @@ export class EquipmentMatchVisualization {
     if (!player.equipment_effects) return null;
 
     return {
-      totalPowerIncrease: Object.values(player.equipment_effects)
-        .filter((value, index) => index < 6) // 最初の6つのステータスボーナス
-        .reduce((sum, value) => sum + (typeof value === 'number' ? value : 0), 0),
+      totalPowerIncrease: [
+        player.equipment_effects.serve_skill_bonus,
+        player.equipment_effects.return_skill_bonus,
+        player.equipment_effects.volley_skill_bonus,
+        player.equipment_effects.stroke_skill_bonus,
+        player.equipment_effects.mental_bonus,
+        player.equipment_effects.stamina_bonus
+      ].reduce((sum, v) => sum + (v || 0), 0),
       
       experienceBoost: player.equipment_effects.experience_boost,
       
