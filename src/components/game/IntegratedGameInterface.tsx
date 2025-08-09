@@ -371,24 +371,10 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
           {activeTab === 'sugoroku' && (
             <div className="h-[800px]">
               <SugorokuTrainingBoard
-                cards={gameState.availableCards.map(card => ({
-                  id: card.id,
-                  name: card.name,
-                  // type は TrainingCard 型には存在しないので除去
-                  number: card.number,
-                  rarity: card.rarity,
-                  description: card.description,
-                  trainingEffects: Object.entries(card.baseEffects.skillGrowth || {}).reduce((acc, [key, value]) => {
-                    if (typeof value === 'number') {
-                      acc[key] = value;
-                    }
-                    return acc;
-                  }, {} as Record<string, number>)
-                }))}
+                currentPosition={gameState.dayCount}
+                availableCards={gameState.availableCards}
                 onCardUse={handleCardUse}
-                currentProgress={gameState.dayCount}
                 isLoading={isAdvancingDay}
-                peekDays={gameState.calendarSystem.peekDays(14)}
               />
             </div>
           )}
