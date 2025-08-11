@@ -18,6 +18,10 @@ export interface SquareEffect {
     staminaChange?: number; // 体力増減
     motivationChange?: number; // やる気増減
     
+    // 学校ステータス効果
+    fundsChange?: number; // 資金増減
+    reputationChange?: number; // 評判増減
+    
     // 特殊効果
     injuryRisk?: number; // 怪我リスク (%)
     eventTriggerChance?: number; // イベント発生率 (%)

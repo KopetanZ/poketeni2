@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CardRarity } from '@/types/training-cards';
+import { TrainingCard, CardRarity } from '@/types/training-cards';
 import { MANAGER_IMAGE_PATHS, MANAGER_TIPS } from '@/lib/manager-assets';
 import { SQUARE_EFFECTS } from '@/lib/calendar-system';
 import { CalendarDay } from '@/types/calendar';
@@ -98,7 +98,7 @@ export default function SugorokuTrainingBoard({
     return days;
   };
 
-  // マス目の色を決定
+  // マス目の色を決定（仕様書通りの5色システム）
   const getSquareStyle = (type: string) => {
     const squareStyle = {
       'blue': 'from-blue-500 to-blue-600 border-blue-400',
@@ -111,18 +111,68 @@ export default function SugorokuTrainingBoard({
     return squareStyle[type as keyof typeof squareStyle] || 'from-slate-600 to-slate-700 border-slate-500';
   };
 
-  // マス目の種類を決定（簡易版）
+  // マス目の種類を決定（仕様書通りの効果ベース）
   const getSquareType = (day: number): string => {
-    const types = ['blue', 'red', 'white', 'green', 'yellow'];
-    return types[day % types.length];
+    // 仕様書通りのマス目配置ロジック
+    const cycle = 24; // 1周24マス
+    const position = day % cycle;
+    
+    // 青マス（良いイベント）: 4, 8, 12, 16, 20
+    if ([4, 8, 12, 16, 20].includes(position)) return 'blue';
+    
+    // 赤マス（悪いイベント）: 2, 6, 10, 14, 18, 22
+    if ([2, 6, 10, 14, 18, 22].includes(position)) return 'red';
+    
+    // 緑マス（体力回復）: 1, 7, 13, 19
+    if ([1, 7, 13, 19].includes(position)) return 'green';
+    
+    // 黄マス（練習効率）: 3, 9, 15, 21
+    if ([3, 9, 15, 21].includes(position)) return 'yellow';
+    
+    // 白マス（ランダムイベント）: 0, 5, 11, 17, 23
+    return 'white';
   };
 
-  // 特別イベントを決定（簡易版）
+  // 特別イベントを決定（仕様書通りの季節イベント）
   const getSpecialEvent = (day: number) => {
-    if (day % 7 === 0) return { type: 'bonus', name: '週末ボーナス' };
-    if (day % 10 === 0) return { type: 'evolution', name: '進化チャンス' };
-    if (day % 15 === 0) return { type: 'shop', name: 'ショップ' };
+    const cycle = 24;
+    const position = day % cycle;
+    
+    // 季節イベント（固定位置）
+    if (position === 0) return { type: 'bonus', name: '週末ボーナス' };
+    if (position === 8) return { type: 'evolution', name: '進化チャンス' };
+    if (position === 16) return { type: 'shop', name: 'ショップ' };
+    if (position === 12) return { type: 'challenge', name: '強化試合' };
+    
+    // 隠しイベント（ランダム）
+    if (Math.random() < 0.1) {
+      const events = [
+        { type: 'bonus', name: 'ラッキーイベント' },
+        { type: 'evolution', name: '隠し進化' },
+        { type: 'shop', name: '隠しショップ' }
+      ];
+      return events[Math.floor(Math.random() * events.length)];
+    }
+    
     return null;
+  };
+
+  // マス目の説明を取得
+  const getSquareDescription = (type: string) => {
+    switch (type) {
+      case 'blue':
+        return '良い練習をすることで、スキルや体力が向上します。';
+      case 'red':
+        return '悪い練習をすることで、スキルや体力が低下します。';
+      case 'green':
+        return '体力が回復し、疲労が解消されます。';
+      case 'yellow':
+        return '練習効率が向上し、より多くのスキルを獲得できます。';
+      case 'white':
+        return 'ランダムなイベントが発生します。';
+      default:
+        return '通常の日です。';
+    }
   };
 
   const calendarDays = getCalendarDays();
@@ -152,20 +202,25 @@ export default function SugorokuTrainingBoard({
             const animationClass = isAdvancingTo ? 'animate-pulse ring-4 ring-yellow-300 shadow-yellow-500/50 shadow-xl scale-110' : '';
             const completedClass = isCompleted ? 'ring-2 ring-green-300 shadow-green-500/30' : '';
             
+            // マス目の説明を取得
+            const squareDescription = getSquareDescription(dayInfo.type);
+            
             return (
               <div
                 key={`${dayInfo.day}-${index}`}
                 className={`relative w-14 h-14 min-w-14 rounded-md border-2 flex items-center justify-center text-sm font-bold transition-all duration-300 ${baseClass} ${animationClass} ${completedClass}
                 ${isCurrent ? 'ring-2 ring-yellow-300 shadow-yellow-500/40 shadow-lg' : ''}
                 ${isNext ? 'ring-2 ring-purple-300 shadow-purple-500/40 shadow-lg' : ''}`}
-                title={dayInfo.event ? dayInfo.event.name : `Day ${dayInfo.day}`}
+                title={`Day ${dayInfo.day} - ${squareDescription}`}
+                onClick={() => dayInfo.event && setShowEventDetails(dayInfo.event)}
               >
                 <span className={`text-white drop-shadow`}>{dayInfo.day}</span>
                 {dayInfo.event && (
                   <div className="absolute -top-2 -right-2 text-base">
                     {dayInfo.event.type === 'shop' ? '🏪' : 
                      dayInfo.event.type === 'bonus' ? '🎾' : 
-                     dayInfo.event.type === 'evolution' ? '✨' : '⚔️'}
+                     dayInfo.event.type === 'evolution' ? '✨' : 
+                     dayInfo.event.type === 'challenge' ? '⚔️' : '🎲'}
                   </div>
                 )}
                 {/* 進行中のマーカー */}
@@ -177,6 +232,30 @@ export default function SugorokuTrainingBoard({
               </div>
             );
           })}
+        </div>
+
+        {/* マス目説明 */}
+        <div className="mt-3 flex justify-center gap-4 text-xs text-slate-300">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-500 rounded"></div>
+            <span>青: 良練習</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-red-500 rounded"></div>
+            <span>赤: 悪練習</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-500 rounded"></div>
+            <span>緑: 回復</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+            <span>黄: 効率</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-gray-400 rounded"></div>
+            <span>白: ランダム</span>
+          </div>
         </div>
 
         {/* 進行状況表示 */}

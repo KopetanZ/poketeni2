@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { IntegratedGameFlow, GameState } from '../../lib/integrated-game-flow';
-import { Player } from '../../types/game';
+import { Player, GameDate } from '@/types/game';
 import { CalendarDay } from '../../types/calendar';
 import { TrainingCard, CardUsageResult } from '../../types/training-cards';
 import { StrategicChoice, ChoiceOutcome } from '../../types/strategic-choice';
@@ -30,13 +30,18 @@ interface IntegratedGameInterfaceProps {
   };
   allPlayers?: Player[];
   schoolId?: string;
+  onGameStateUpdate?: (newState: {
+    currentDate: GameDate;
+    schoolStats: { funds: number; reputation: number; facilities: number };
+  }) => void;
 }
 
 export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = ({
   initialPlayer,
   initialSchoolStats,
   allPlayers,
-  schoolId
+  schoolId,
+  onGameStateUpdate
 }) => {
   // ゲームフロー管理
   const [gameFlow] = useState(() => new IntegratedGameFlow(initialPlayer, initialSchoolStats, allPlayers));
@@ -219,6 +224,15 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       // ここでは state 同期のみ
       syncGameState();
       
+      // 親コンポーネントにゲーム状態の更新を通知
+      if (onGameStateUpdate) {
+        const updatedState = gameFlow.getGameState();
+        onGameStateUpdate({
+          currentDate: updatedState.currentDay,
+          schoolStats: updatedState.schoolStats
+        });
+      }
+      
       // 緊急事態チェック
       const emergency = gameFlow.handleEmergency();
       if (emergency) {
@@ -227,7 +241,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       
     } catch (error) {
       console.error('Error using card:', error);
-      setNotifications(prev => [...prev, 'カード使用エラー'].slice(-5));
+      setNotifications(prev => [...prev, 'カード使用中にエラーが発生しました'].slice(-5));
     } finally {
       setIsAdvancingDay(false);
     }

@@ -4,10 +4,10 @@
 import { CalendarSystem } from './calendar-system';
 import { TrainingCardSystem } from './training-card-system';
 import { StrategicChoiceSystem, STRATEGIC_CHOICES } from './strategic-choice-system';
-import { CalendarDay } from '../types/calendar';
-import { TrainingCard, CardUsageResult } from '../types/training-cards';
 import { StrategicChoice, ChoiceOutcome, ChoiceRouteType } from '../types/strategic-choice';
 import { Player } from '../types/game';
+import { SquareEffect, SeasonalEvent, HiddenEvent, CalendarDay } from '../types/calendar';
+import { TrainingCard, CardUsageResult } from '../types/training-cards';
 
 export interface GameState {
   // カレンダー状態
@@ -273,12 +273,18 @@ export class IntegratedGameFlow {
       const dayResult = this.gameState.calendarSystem.advanceDay();
       newDays.push(dayResult);
       
+      // === マス目効果の独立した処理 ===
+      const landedSquareEffect = this.gameState.calendarSystem.getSquareEffect(dayResult.square);
+      this.applySquareEffects(landedSquareEffect, dayResult);
+      
       // 各日でのイベント判定
       if (dayResult.seasonalEvent) {
         triggeredEvents.push(`seasonal_event:${dayResult.seasonalEvent.id}`);
+        this.applySeasonalEvent(dayResult.seasonalEvent);
       }
       if (dayResult.hiddenEvent) {
         triggeredEvents.push(`hidden_event:${dayResult.hiddenEvent.id}`);
+        this.applyHiddenEvent(dayResult.hiddenEvent);
       }
       
       this.gameState.dayCount++;
@@ -299,12 +305,91 @@ export class IntegratedGameFlow {
       c => c.id !== card.id
     );
 
+    // カード補充処理（学校評判による調整）
+    this.replenishCardsAfterUsage();
+
     return {
       ...result,
       daysProgressed: daysToProgress,
       newDays,
       triggeredEvents
     };
+  }
+
+  // カード使用後の補充処理
+  private replenishCardsAfterUsage(): void {
+    const targetCardCount = this.calculateDailyCardCount();
+    const currentCount = this.gameState.availableCards.length;
+    
+    if (currentCount < targetCardCount) {
+      const cardsNeeded = targetCardCount - currentCount;
+      const newCards = TrainingCardSystem.generateCardDrop(
+        this.gameState.schoolStats.reputation,
+        this.gameState.player.level || 1,
+        cardsNeeded,
+        'daily_practice'
+      );
+      
+      this.gameState.availableCards.push(...newCards.cards);
+      
+      // レジェンドカードの統計更新
+      const legendaryCards = newCards.cards.filter(card => card.rarity === 'legendary');
+      this.gameState.stats.legendaryCardsObtained += legendaryCards.length;
+    }
+  }
+
+  // マス目効果の適用（独立した処理）
+  private applySquareEffects(squareEffect: SquareEffect, dayResult: CalendarDay): void {
+    const effects = squareEffect.effects;
+    
+    // 練習効率によるスキル成長調整（既存の処理と重複しないよう注意）
+    
+    // スタミナ変化
+    if (effects.staminaChange !== undefined && this.gameState.allPlayers) {
+      this.gameState.allPlayers.forEach(player => {
+        player.stamina = Math.max(0, Math.min(100, player.stamina + effects.staminaChange!));
+      });
+    }
+    
+    // やる気変化
+    if (effects.motivationChange !== undefined && this.gameState.allPlayers) {
+      this.gameState.allPlayers.forEach(player => {
+        player.motivation = Math.max(0, Math.min(100, player.motivation + effects.motivationChange!));
+      });
+    }
+    
+    // 怪我リスク処理
+    if (effects.injuryRisk !== undefined && this.gameState.allPlayers) {
+      this.gameState.allPlayers.forEach(player => {
+        if (Math.random() < effects.injuryRisk! / 100) {
+          player.condition = 'poor';
+          player.stamina = Math.max(0, player.stamina - 10);
+        }
+      });
+    }
+    
+    // 学校ステータス変化
+    if (effects.fundsChange !== undefined) {
+      this.gameState.schoolStats.funds = Math.max(0, this.gameState.schoolStats.funds + effects.fundsChange);
+    }
+    
+    if (effects.reputationChange !== undefined) {
+      this.gameState.schoolStats.reputation = Math.max(0, Math.min(100, this.gameState.schoolStats.reputation + effects.reputationChange));
+    }
+  }
+
+  // 季節イベント効果の適用
+  private applySeasonalEvent(event: SeasonalEvent): void {
+    // 季節イベントの効果を実装
+    // 資金、評判、プレイヤー状態等の変化
+    console.log('Seasonal event applied:', event.name);
+  }
+
+  // 隠しイベント効果の適用
+  private applyHiddenEvent(event: HiddenEvent): void {
+    // 隠しイベントの効果を実装
+    // ランダムな効果や特別な報酬
+    console.log('Hidden event applied:', event.name);
   }
 
   // 戦略的選択実行

@@ -11,7 +11,6 @@ import EquipmentManager from '@/components/equipment/EquipmentManager';
 import PokemonStatsViewer from '@/components/pokemon/PokemonStatsViewer';
 import PokemonBreeder from '@/components/pokemon/PokemonBreeder';
 import AdvancedMatchViewer from '@/components/match/AdvancedMatchViewer';
-import { Player } from '@/types/game';
 import { PlayerEquipment } from '@/types/items';
 import { PokemonStats } from '@/types/pokemon-stats';
 import { PlayerGenerator } from '@/lib/player-generator';
@@ -29,10 +28,16 @@ import { SpecialEventsSystem } from '@/lib/special-events-system';
 import CalendarView from '@/components/calendar/CalendarView';
 import IntegratedGameInterface from '@/components/game/IntegratedGameInterface';
 import { supabase } from '@/lib/supabase';
+import { Player, GameDate } from '@/types/game';
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const { gameData, loading: gameLoading, error, useCard, initializeWithCustomData } = useGameData();
+  const { gameData, loading: gameLoading, error, refreshData, initializeWithCustomData } = useGameData();
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [activeMenu, setActiveMenu] = useState('home');
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [availableEventsCount, setAvailableEventsCount] = useState(0);
   
   // ショップとアイテム管理の状態
   const [showShop, setShowShop] = useState(false);
@@ -40,15 +45,94 @@ export default function Home() {
   const [showPokemonStats, setShowPokemonStats] = useState(false);
   const [showBreeder, setShowBreeder] = useState(false);
   const [showAdvancedMatch, setShowAdvancedMatch] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  const [activeMenu, setActiveMenu] = useState('home');
   
-  // オンボーディング状態
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [isFirstTimeUser, setIsFirstTimeUser] = useState<boolean | null>(null);
-  
-  // イベント通知状態
-  const [availableEventsCount, setAvailableEventsCount] = useState(0);
+  // ゲーム状態の同期用
+  const [currentGameState, setCurrentGameState] = useState<{
+    currentDate: GameDate;
+    schoolStats: { funds: number; reputation: number; facilities: number };
+  } | null>(null);
+
+  // ゲーム状態の更新ハンドラー
+  const handleGameStateUpdate = (newState: {
+    currentDate: GameDate;
+    schoolStats: { funds: number; reputation: number; facilities: number };
+  }) => {
+    setCurrentGameState(newState);
+    
+    // ゲーム状態が更新されたら、データを再読み込み
+    if (gameData) {
+      refreshData();
+    }
+  };
+
+  // プレイヤー更新ハンドラー
+  const handlePlayerUpdate = (updatedPlayer: Player) => {
+    // TODO: 実際のデータベース更新処理を実装
+    console.log('Player updated:', updatedPlayer);
+    // ここで gameData の players を更新する必要がある
+  };
+
+  // スカウト結果ハンドラー
+  const handleScoutingComplete = (result: { success: boolean; data?: unknown; cost?: number }) => {
+    // TODO: スカウト費用を学校資金から差し引く処理を実装
+    console.log('Scouting completed:', result);
+  };
+
+  // 勧誘結果ハンドラー
+  const handleRecruitmentComplete = (attempt: { success: boolean; new_player?: Player; cost?: number }) => {
+    // TODO: 勧誘成功時にプレイヤーを追加、費用を差し引く処理を実装
+    console.log('Recruitment completed:', attempt);
+    if (attempt.success && attempt.new_player) {
+      // プレイヤー追加の処理をここで実装
+      alert(`${attempt.new_player.pokemon_name}が部活に加入しました！`);
+    }
+  };
+
+  // イベント完了ハンドラー
+  const handleEventComplete = (outcome: { success: boolean; message?: string; rewards?: unknown }, player: Player) => {
+    console.log('Event completed:', outcome, player);
+    
+    // 特殊能力習得時の処理
+    if (outcome.success && (outcome as any).learned_ability) {
+      // プレイヤーに特殊能力を追加
+      if (!player.special_abilities) {
+        player.special_abilities = [];
+      }
+      player.special_abilities.push((outcome as any).learned_ability);
+      
+      // TODO: データベース更新処理を実装
+      alert(`${player.pokemon_name}が「${(outcome as any).learned_ability.name}」を習得しました！`);
+    } else {
+      alert(`${player.pokemon_name}は特殊能力の習得に失敗しました...でも経験は積めました`);
+    }
+
+    // 報酬処理
+    if ((outcome as any).rewards_gained) {
+      // TODO: 実際の報酬反映処理を実装
+      console.log('Rewards gained:', (outcome as any).rewards_gained);
+    }
+  };
+
+  // メニューハンドラー
+  const handleMenuClick = (menu: string) => {
+    setActiveMenu(menu);
+    
+    // メニューに応じてモーダルを開く
+    switch (menu) {
+      case 'shop':
+        setShowShop(true);
+        break;
+      case 'breeding':
+        setShowBreeder(true);
+        break;
+      case 'match':
+        if (currentDisplayPlayer) {
+          setSelectedPlayer(currentDisplayPlayer);
+          setShowAdvancedMatch(true);
+        }
+        break;
+    }
+  };
 
   const loading = gameLoading;
 
@@ -125,11 +209,11 @@ export default function Home() {
       console.log('Starting onboarding completion with data:', data);
       
       // カスタムデータでゲーム初期化
-      await initializeWithCustomData({
-        schoolName: data.schoolName,
-        selectedStarter: data.selectedStarter,
-        managerName: data.managerName
-      });
+      // await initializeWithCustomData({ // This line was removed as per the new_code
+      //   schoolName: data.schoolName,
+      //   selectedStarter: data.selectedStarter,
+      //   managerName: data.managerName
+      // });
       
       // オンボーディング終了
       setShowOnboarding(false);
@@ -221,75 +305,6 @@ export default function Home() {
     return Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  // プレイヤー更新ハンドラー
-  const handlePlayerUpdate = (updatedPlayer: Player) => {
-    // TODO: 実際のデータベース更新処理を実装
-    console.log('Player updated:', updatedPlayer);
-    // ここで gameData の players を更新する必要がある
-  };
-
-  // スカウト結果ハンドラー
-  const handleScoutingComplete = (result: { success: boolean; data?: unknown; cost?: number }) => {
-    // TODO: スカウト費用を学校資金から差し引く処理を実装
-    console.log('Scouting completed:', result);
-  };
-
-  // 勧誘結果ハンドラー
-  const handleRecruitmentComplete = (attempt: { success: boolean; new_player?: Player; cost?: number }) => {
-    // TODO: 勧誘成功時にプレイヤーを追加、費用を差し引く処理を実装
-    console.log('Recruitment completed:', attempt);
-    if (attempt.success && attempt.new_player) {
-      // プレイヤー追加の処理をここで実装
-      alert(`${attempt.new_player.pokemon_name}が部活に加入しました！`);
-    }
-  };
-
-  // イベント完了ハンドラー
-  const handleEventComplete = (outcome: { success: boolean; message?: string; rewards?: unknown }, player: Player) => {
-    console.log('Event completed:', outcome, player);
-    
-    // 特殊能力習得時の処理
-    if (outcome.success && (outcome as any).learned_ability) {
-      // プレイヤーに特殊能力を追加
-      if (!player.special_abilities) {
-        player.special_abilities = [];
-      }
-      player.special_abilities.push((outcome as any).learned_ability);
-      
-      // TODO: データベース更新処理を実装
-      alert(`${player.pokemon_name}が「${(outcome as any).learned_ability.name}」を習得しました！`);
-    } else {
-      alert(`${player.pokemon_name}は特殊能力の習得に失敗しました...でも経験は積めました`);
-    }
-
-    // 報酬処理
-    if ((outcome as any).rewards_gained) {
-      // TODO: 実際の報酬反映処理を実装
-      console.log('Rewards gained:', (outcome as any).rewards_gained);
-    }
-  };
-
-  // メニューハンドラー
-  const handleMenuClick = (menu: string) => {
-    setActiveMenu(menu);
-    
-    // メニューに応じてモーダルを開く
-    switch (menu) {
-      case 'shop':
-        setShowShop(true);
-        break;
-      case 'breeding':
-        setShowBreeder(true);
-        break;
-      case 'match':
-        if (currentDisplayPlayer) {
-          setSelectedPlayer(currentDisplayPlayer);
-          setShowAdvancedMatch(true);
-        }
-        break;
-    }
-  };
-
   return (
     <>
     <EikanNineLayout
@@ -308,12 +323,13 @@ export default function Home() {
           <IntegratedGameInterface
             initialPlayer={currentDisplayPlayer}
             initialSchoolStats={{
-              funds: school.funds,
-              reputation: school.reputation,
-              facilities: 50
+              funds: currentGameState?.schoolStats.funds ?? school.funds,
+              reputation: currentGameState?.schoolStats.reputation ?? school.reputation,
+              facilities: currentGameState?.schoolStats.facilities ?? 50
             }}
             allPlayers={players}
             schoolId={school.id}
+            onGameStateUpdate={handleGameStateUpdate}
           />
         </div>
       )}

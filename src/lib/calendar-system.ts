@@ -29,6 +29,8 @@ export const SQUARE_EFFECTS: Record<SquareType, SquareEffect> = {
     effects: {
       practiceEfficiency: 150,
       motivationChange: 5,
+      fundsChange: 1000, // 資金獲得
+      reputationChange: 1, // 評判向上
       skillBonus: {
         serve_skill: 1.5,
         return_skill: 1.5,
@@ -51,6 +53,8 @@ export const SQUARE_EFFECTS: Record<SquareType, SquareEffect> = {
       staminaChange: -10,
       motivationChange: -3,
       injuryRisk: 15,
+      fundsChange: -500, // 資金減少
+      reputationChange: -1, // 評判低下
       skillBonus: {
         serve_skill: 0.7,
         return_skill: 0.7,
@@ -71,7 +75,10 @@ export const SQUARE_EFFECTS: Record<SquareType, SquareEffect> = {
     effects: {
       practiceEfficiency: 100,
       eventTriggerChance: 30,
-      specialEventOnly: true
+      specialEventOnly: true,
+      // ランダム効果（50%の確率で青または赤マス効果）
+      fundsChange: Math.random() > 0.5 ? 500 : -300,
+      reputationChange: Math.random() > 0.5 ? 1 : -1
     }
   },
   green: {
@@ -101,13 +108,14 @@ export const SQUARE_EFFECTS: Record<SquareType, SquareEffect> = {
     bgColor: '#FFFBEB',
     effects: {
       practiceEfficiency: 120,
-      staminaChange: -5,
+      motivationChange: 3,
+      // 特殊能力習得確率+20%（実装予定）
       skillBonus: {
         serve_skill: 1.2,
         return_skill: 1.2,
         volley_skill: 1.2,
         stroke_skill: 1.2,
-        mental: 1.1,
+        mental: 1.2,
         stamina: 1.1
       }
     }
