@@ -17,7 +17,8 @@ interface GameData {
 }
 
 export function useGameData() {
-  const { user } = useAuth();
+  const { user: localUser } = useAuth();
+  const [supabaseUser, setSupabaseUser] = useState<any>(null);
   const [gameData, setGameData] = useState<GameData>({
     school: null,
     cards: [],
@@ -27,16 +28,42 @@ export function useGameData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Supabaseの認証状態を確認
+  useEffect(() => {
+    const checkSupabaseAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setSupabaseUser(user);
+        console.log('useGameData: Supabase user:', user?.id);
+      } catch (error) {
+        console.error('useGameData: Failed to get Supabase user:', error);
+        setSupabaseUser(null);
+      }
+    };
+
+    checkSupabaseAuth();
+
+    // 認証状態の変更を監視
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('useGameData: Auth state changed:', event, session?.user?.id);
+        setSupabaseUser(session?.user || null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // ゲームデータの初期化・読み込み
   useEffect(() => {
-    if (!user) {
+    if (!localUser || !supabaseUser) {
       setLoading(false);
       return;
     }
 
-    console.log('useGameData: User authenticated, starting initialization...');
+    console.log('useGameData: Both local and Supabase users authenticated, starting initialization...');
     initializeGameData();
-  }, [user]);
+  }, [localUser, supabaseUser]);
 
   // ゲームデータの初期化（カスタムスターター対応）
   const initializeGameData = async (customStarterData?: {
@@ -44,13 +71,13 @@ export function useGameData() {
     selectedStarter: string;
     managerName?: string;
   }) => {
-    if (!user) return;
+    if (!supabaseUser) return;
     
     setLoading(true);
     setError(null);
 
     try {
-      console.log('Starting game data initialization for user:', user?.id);
+      console.log('Starting game data initialization for user:', supabaseUser?.id);
       console.log('Custom starter data:', customStarterData);
       
       // Important: Avoid creating default data before the user selects a starter on first run
@@ -61,7 +88,7 @@ export function useGameData() {
         const { data: existingSchoolCheck, error: existingSchoolErr } = await supabase
           .from('schools')
           .select('id')
-          .eq('user_id', user.id)
+          .eq('user_id', supabaseUser.id)
           .maybeSingle();
 
         if (existingSchoolErr && existingSchoolErr.code !== 'PGRST116') {
@@ -147,9 +174,9 @@ export function useGameData() {
 
   // 学校データの取得または作成（カスタム学校名対応）
   const getOrCreateSchool = async (customSchoolName?: string): Promise<School> => {
-    if (!user) throw new Error('User not authenticated');
+    if (!supabaseUser) throw new Error('User not authenticated');
 
-    console.log('getOrCreateSchool: Starting with user ID:', user.id);
+    console.log('getOrCreateSchool: Starting with user ID:', supabaseUser.id);
 
     try {
       // 既存の学校データを確認
@@ -157,7 +184,7 @@ export function useGameData() {
       const { data: existingSchool, error: fetchError } = await supabase
         .from('schools')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', supabaseUser.id)
         .maybeSingle();
 
       console.log('getOrCreateSchool: Fetch result:', { existingSchool, fetchError });
@@ -175,10 +202,15 @@ export function useGameData() {
       // 新しい学校を作成（カスタム名対応）
       const schoolName = customSchoolName || 'ポケテニ高校';
       console.log('getOrCreateSchool: Creating new school with name:', schoolName);
+      
+      // IDを明示的に生成（text型のため）
+      const schoolId = `school_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
       const { data: newSchool, error: createError } = await supabase
         .from('schools')
         .insert({
-          user_id: user.id,
+          id: schoolId,
+          user_id: supabaseUser.id,
           name: schoolName,
           reputation: 0,
           funds: 1000,
@@ -210,7 +242,7 @@ export function useGameData() {
 
   // 手札の取得または作成
   const getOrCreateHandCards = async (school: School): Promise<TrainingCard[]> => {
-    if (!user) throw new Error('User not authenticated');
+    if (!supabaseUser) throw new Error('User not authenticated');
     if (!school) throw new Error('School not found');
 
     console.log('getOrCreateHandCards: Starting with school ID:', school.id);
@@ -240,7 +272,8 @@ export function useGameData() {
       const newCards = CardGenerator.generateHand(5);
       console.log('getOrCreateHandCards: Generated cards:', newCards?.length);
       
-      const cardInserts = newCards.map(card => ({
+      const cardInserts = newCards.map((card, index) => ({
+        id: `card_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
         school_id: school.id,
         card_data: card
       }));
@@ -267,7 +300,7 @@ export function useGameData() {
 
   // ポケモン選手の取得または作成（カスタムスターター対応）
   const getOrCreatePlayers = async (school: School, selectedStarter?: string): Promise<Player[]> => {
-    if (!user) throw new Error('User not authenticated');
+    if (!supabaseUser) throw new Error('User not authenticated');
     if (!school) throw new Error('School not found');
 
     console.log('getOrCreatePlayers: Starting with school ID:', school.id);
@@ -312,7 +345,8 @@ export function useGameData() {
         : await PlayerGenerator.generateStarterTeam();
       console.log('getOrCreatePlayers: Generated team:', starterTeam?.length);
       
-      const playerInserts = starterTeam.map(player => ({
+      const playerInserts = starterTeam.map((player, index) => ({
+        id: `player_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
         school_id: school.id,
         pokemon_name: player.pokemon_name,
         pokemon_id: player.pokemon_id,
