@@ -38,6 +38,7 @@ export default function Home() {
   const [activeMenu, setActiveMenu] = useState('home');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [availableEventsCount, setAvailableEventsCount] = useState(0);
+  const [isInitializing, setIsInitializing] = useState(false);
   
   // ショップとアイテム管理の状態
   const [showShop, setShowShop] = useState(false);
@@ -206,24 +207,32 @@ export default function Home() {
     managerName?: string;
   }) => {
     try {
-      console.log('Starting onboarding completion with data:', data);
+      console.log('page.tsx: Starting onboarding completion with data:', data);
+      
+      setIsInitializing(true);
+      console.log('page.tsx: Set isInitializing to true');
       
       // カスタムデータでゲーム初期化
-      // await initializeWithCustomData({ // This line was removed as per the new_code
-      //   schoolName: data.schoolName,
-      //   selectedStarter: data.selectedStarter,
-      //   managerName: data.managerName
-      // });
+      console.log('page.tsx: Calling initializeWithCustomData...');
+      await initializeWithCustomData({
+        schoolName: data.schoolName,
+        selectedStarter: data.selectedStarter,
+        managerName: data.managerName
+      });
+      console.log('page.tsx: initializeWithCustomData completed successfully');
       
       // オンボーディング終了
       setShowOnboarding(false);
       setIsFirstTimeUser(false);
       
-      console.log('Onboarding completed successfully');
+      console.log('page.tsx: Onboarding completed successfully');
     } catch (error) {
-      console.error('Failed to complete onboarding:', error);
+      console.error('page.tsx: Failed to complete onboarding:', error);
       // エラー時はオンボーディングを再表示
       alert('初期設定に失敗しました。もう一度お試しください。');
+    } finally {
+      setIsInitializing(false);
+      console.log('page.tsx: Set isInitializing to false');
     }
   };
 
@@ -281,12 +290,14 @@ export default function Home() {
   }
 
   // 初期化中
-  if (loading || !gameData.school) {
+  if (gameLoading || isInitializing || !gameData.school) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">ゲームデータ読み込み中...</p>
+          <p className="mt-4 text-lg text-gray-600">
+            {isInitializing ? 'ゲーム初期化中...' : 'ゲームデータ読み込み中...'}
+          </p>
         </div>
       </div>
     );

@@ -34,6 +34,7 @@ export function useGameData() {
       return;
     }
 
+    console.log('useGameData: User authenticated, starting initialization...');
     initializeGameData();
   }, [user]);
 
@@ -56,6 +57,7 @@ export function useGameData() {
       // If there is no existing school AND no selectedStarter provided, skip initialization here.
       // This prevents default fallback team (フシギダネ) from being created prematurely.
       try {
+        console.log('useGameData: Checking for existing school...');
         const { data: existingSchoolCheck, error: existingSchoolErr } = await supabase
           .from('schools')
           .select('id')
@@ -64,36 +66,56 @@ export function useGameData() {
 
         if (existingSchoolErr && existingSchoolErr.code !== 'PGRST116') {
           // Non-not-found error; surface it as usual
+          console.error('useGameData: Error checking existing school:', existingSchoolErr);
           throw existingSchoolErr;
         }
 
         const hasExistingSchool = !!existingSchoolCheck;
         const hasSelectedStarter = !!customStarterData?.selectedStarter;
 
+        console.log('useGameData: School check result:', { hasExistingSchool, hasSelectedStarter, customStarterData });
+
         if (!hasExistingSchool && !hasSelectedStarter) {
-          console.log('First-time user without selected starter yet; deferring initialization until onboarding completes.');
+          console.log('useGameData: First-time user without selected starter yet; deferring initialization until onboarding completes.');
           setLoading(false);
           return;
         }
+
+        // カスタムスターターデータが提供されている場合は、強制的に初期化を続行
+        if (customStarterData?.selectedStarter) {
+          console.log('useGameData: Custom starter data provided, proceeding with initialization...');
+        }
       } catch (precheckError) {
-        console.warn('Pre-initialization check warning:', precheckError);
+        console.warn('useGameData: Pre-initialization check warning:', precheckError);
         // Continue with initialization; downstream handlers will catch fatal errors
       }
       
       // 1. 学校データの取得または作成
-      console.log('Step 1: Creating/getting school...');
+      console.log('useGameData: Step 1: Creating/getting school...');
       let school = await getOrCreateSchool(customStarterData?.schoolName);
-      console.log('School created/retrieved:', school);
+      console.log('useGameData: School created/retrieved:', school);
+      
+      if (!school) {
+        throw new Error('Failed to create or retrieve school');
+      }
       
       // 2. 手札の取得または作成（学校データを渡す）
-      console.log('Step 2: Creating/getting hand cards...');
+      console.log('useGameData: Step 2: Creating/getting hand cards...');
       let cards = await getOrCreateHandCards(school);
-      console.log('Cards created/retrieved:', cards?.length, 'cards');
+      console.log('useGameData: Cards created/retrieved:', cards?.length, 'cards');
+      
+      if (!cards || cards.length === 0) {
+        console.warn('useGameData: No cards created/retrieved, this might be expected for new games');
+      }
 
       // 3. ポケモン選手の取得または作成（カスタムスターター対応）
-      console.log('Step 3: Creating/getting players...');
+      console.log('useGameData: Step 3: Creating/getting players...');
       let players = await getOrCreatePlayers(school, customStarterData?.selectedStarter);
-      console.log('Players created/retrieved:', players?.length, 'players');
+      console.log('useGameData: Players created/retrieved:', players?.length, 'players');
+      
+      if (!players || players.length === 0) {
+        throw new Error('Failed to create or retrieve players');
+      }
 
       // 4. 現在の日付を学校データから取得
       const currentDate: GameDate = {
@@ -102,23 +124,24 @@ export function useGameData() {
         day: school.current_day
       };
 
-      console.log('Step 4: Setting game data...');
+      console.log('useGameData: Step 4: Setting game data...');
       setGameData({
         school,
         cards,
         players,
         currentDate
       });
-      console.log('Game data initialization completed successfully');
+      console.log('useGameData: Game data initialization completed successfully');
     } catch (err) {
-      console.error('Game data initialization error:', err);
-      console.error('Error details:', {
+      console.error('useGameData: Game data initialization error:', err);
+      console.error('useGameData: Error details:', {
         message: (err as Error)?.message,
         stack: (err as Error)?.stack
       });
       setError('ゲームデータの初期化に失敗しました: ' + (err as Error)?.message);
     } finally {
       setLoading(false);
+      console.log('useGameData: Set loading to false');
     }
   };
 
