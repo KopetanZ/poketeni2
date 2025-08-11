@@ -64,8 +64,9 @@ export interface GameState {
 
 export class IntegratedGameFlow {
   private gameState: GameState;
-
-  constructor(initialPlayer: Player, initialSchoolStats: any, allPlayers?: Player[]) {
+  private schoolId: string;
+  
+  constructor(initialPlayer: Player, initialSchoolStats: any, schoolId: string, allPlayers?: Player[]) {
     this.gameState = {
       calendarSystem: new CalendarSystem(),
       currentDay: new CalendarSystem().getCurrentState().currentDate,
@@ -490,6 +491,7 @@ export class IntegratedGameFlow {
       const { error } = await supabase
         .from('event_history')
         .insert({
+          school_id: this.schoolId, // school_idを追加
           event_type: eventType,
           event_id: eventId,
           event_name: eventName,
