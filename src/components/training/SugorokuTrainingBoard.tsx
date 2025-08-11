@@ -310,7 +310,7 @@ export default function SugorokuTrainingBoard({
             {/* 一言tips */}
             <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/30">
               <p className="text-slate-300 text-sm italic">
-                "{MANAGER_TIPS[Math.floor(Math.random() * MANAGER_TIPS.length)]}"
+                &ldquo;{MANAGER_TIPS[Math.floor(Math.random() * MANAGER_TIPS.length)]}&rdquo;
               </p>
             </div>
           </div>
