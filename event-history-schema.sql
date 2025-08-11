@@ -2,15 +2,21 @@
 
 create table if not exists public.event_history (
   id uuid primary key default gen_random_uuid(),
-  school_id uuid not null references public.schools(id) on delete cascade,
-  event_type text not null check (event_type in ('seasonal','hidden')),
+  school_id text not null, -- schools.idがtext型のため
+  event_type text not null check (event_type in ('seasonal','hidden','square_effect','card_effect')),
   event_id text not null,
-  source text not null default 'card_progress' check (source in ('card_progress','advance_day')),
+  event_name text,
+  description text,
+  source text not null default 'card_progress' check (source in ('card_progress','advance_day','manual')),
   event_date_year integer not null,
   event_date_month integer not null,
   event_date_day integer not null,
   created_at timestamptz default now()
 );
+
+-- 外部キー制約（schools.idがtext型の場合）
+-- alter table public.event_history add constraint fk_event_history_school 
+--   foreign key (school_id) references public.schools(id) on delete cascade;
 
 -- RLS
 alter table public.event_history enable row level security;

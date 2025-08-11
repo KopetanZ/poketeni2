@@ -92,6 +92,11 @@ export const TrainingCardDisplay: React.FC<TrainingCardDisplayProps> = ({
         </Badge>
       </div>
 
+      {/* 進むマス数表示（右上） */}
+      <div className="absolute top-2 left-2 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-white shadow-lg">
+        <span className="text-white text-xs font-bold">{card.number}</span>
+      </div>
+
       {/* キラキラエフェクト（レジェンドカード用） */}
       {rarityConfig.sparkleEffect && (
         <div className="absolute inset-0 pointer-events-none">

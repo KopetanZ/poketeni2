@@ -5,6 +5,8 @@ import { TrainingCard, CardRarity } from '@/types/training-cards';
 import { MANAGER_IMAGE_PATHS, MANAGER_TIPS } from '@/lib/manager-assets';
 import { SQUARE_EFFECTS } from '@/lib/calendar-system';
 import { CalendarDay } from '@/types/calendar';
+import { Player } from '@/types/game';
+import { PokemonAPI } from '@/lib/pokemon-api';
 
 interface BoardCard {
   id: string;
@@ -20,6 +22,7 @@ interface SugorokuTrainingBoardProps {
   availableCards: TrainingCard[];
   onCardUse: (cardId: string) => void;
   isLoading?: boolean;
+  allPlayers?: Player[];
 }
 
 interface SpecialEvent {
@@ -39,13 +42,55 @@ export default function SugorokuTrainingBoard({
   currentPosition,
   availableCards,
   onCardUse,
-  isLoading = false
+  isLoading = false,
+  allPlayers = []
 }: SugorokuTrainingBoardProps) {
   const [selectedCard, setSelectedCard] = useState<TrainingCard | null>(null);
   const [showEventDetails, setShowEventDetails] = useState<SpecialEvent | null>(null);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [advancementProgress, setAdvancementProgress] = useState(0);
   const [currentAdvancingPosition, setCurrentAdvancingPosition] = useState(currentPosition);
+  const [player1Image, setPlayer1Image] = useState<string>('/pokemon-fallback.png');
+  const [player2Image, setPlayer2Image] = useState<string>('/pokemon-fallback.png');
+  const [ballPosition, setBallPosition] = useState({ x: 50, y: 50 });
+  const [ballDirection, setBallDirection] = useState<'left' | 'right'>('right');
+
+  // ポケモン画像の取得
+  useEffect(() => {
+    const loadPokemonImages = async () => {
+      if (allPlayers.length >= 2) {
+        try {
+          const [pokemon1, pokemon2] = await Promise.all([
+            PokemonAPI.getPokemonDetails(allPlayers[0].pokemon_name),
+            PokemonAPI.getPokemonDetails(allPlayers[1].pokemon_name)
+          ]);
+          setPlayer1Image(PokemonAPI.getBestImageUrl(pokemon1.sprites, true));
+          setPlayer2Image(PokemonAPI.getBestImageUrl(pokemon2.sprites, true));
+        } catch (error) {
+          console.error('Failed to load Pokemon images:', error);
+        }
+      }
+    };
+    loadPokemonImages();
+  }, [allPlayers]);
+
+  // テニスボール打ち合いアニメーション
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBallPosition(prev => {
+        const newDirection = prev.x <= 20 ? 'right' : prev.x >= 80 ? 'left' : ballDirection;
+        setBallDirection(newDirection);
+        
+        const speed = 2;
+        const newX = newDirection === 'right' ? prev.x + speed : prev.x - speed;
+        const newY = 30 + Math.sin((newX / 10) * Math.PI) * 15; // 弧を描くような動き
+        
+        return { x: Math.max(20, Math.min(80, newX)), y: newY };
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [ballDirection]);
 
   // カード使用処理（アニメーション付き）
   const handleCardUse = async (cardId: string) => {
@@ -283,16 +328,54 @@ export default function SugorokuTrainingBoard({
           <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 to-slate-900/40" />
           {/* コート線の簡易表現 */}
           <div className="absolute inset-6 border-2 border-white/30 rounded-xl" />
-          {/* 部員（簡易）：左右にアバター（丸+画像） */}
-          <div className="absolute left-8 bottom-8 w-14 h-14 rounded-full overflow-hidden ring-2 ring-white/60 shadow-xl bg-white/20">
-            <img src="/img/mgr/ChatGPT Image 202587 12_34_08.png" alt="player-left" className="w-full h-full object-cover" />
+          {/* 左側プレイヤー（ポケモン画像） */}
+          <div className="absolute left-8 bottom-8 w-16 h-16 rounded-full overflow-hidden ring-2 ring-yellow-400/60 shadow-xl bg-white/20 transition-all duration-300 hover:scale-110">
+            <img 
+              src={player1Image} 
+              alt={allPlayers[0]?.pokemon_name || 'Player 1'} 
+              className="w-full h-full object-contain bg-gradient-to-br from-blue-100 to-blue-200"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/pokemon-fallback.png';
+              }}
+            />
           </div>
-          <div className="absolute right-8 bottom-8 w-14 h-14 rounded-full overflow-hidden ring-2 ring-white/60 shadow-xl bg-white/20">
-            <img src="/img/mgr/ChatGPT Image 202587 12_34_08.png" alt="player-right" className="w-full h-full object-cover" />
+          
+          {/* 右側プレイヤー（ポケモン画像） */}
+          <div className="absolute right-8 bottom-8 w-16 h-16 rounded-full overflow-hidden ring-2 ring-red-400/60 shadow-xl bg-white/20 transition-all duration-300 hover:scale-110">
+            <img 
+              src={player2Image} 
+              alt={allPlayers[1]?.pokemon_name || 'Player 2'} 
+              className="w-full h-full object-contain bg-gradient-to-br from-red-100 to-red-200 scale-x-[-1]"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/pokemon-fallback.png';
+              }}
+            />
           </div>
-          {/* ボール（バウンドアニメ） */}
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 bg-yellow-400 rounded-full shadow-lg animate-bounce"></div>
+          
+          {/* テニスボール（打ち合いアニメーション） */}
+          <div 
+            className="absolute w-6 h-6 transition-all duration-200 ease-linear"
+            style={{
+              left: `${ballPosition.x}%`,
+              top: `${ballPosition.y}%`,
+              transform: 'translate(-50%, -50%)'
+            }}
+          >
+            <div className="w-full h-full bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full shadow-lg relative">
+              {/* テニスボールの線 */}
+              <div className="absolute inset-0 rounded-full border-2 border-white/50"></div>
+              <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/60 transform -translate-y-1/2"></div>
+            </div>
+            {/* ボールの軌跡エフェクト */}
+            <div className="absolute inset-0 rounded-full bg-yellow-400/20 animate-ping"></div>
+          </div>
+          
+          {/* プレイヤー名表示 */}
+          <div className="absolute left-8 bottom-2 text-xs text-white/80 font-medium bg-black/40 px-2 py-1 rounded">
+            {allPlayers[0]?.pokemon_name || 'Player 1'}
+          </div>
+          <div className="absolute right-8 bottom-2 text-xs text-white/80 font-medium bg-black/40 px-2 py-1 rounded">
+            {allPlayers[1]?.pokemon_name || 'Player 2'}
           </div>
         </div>
 

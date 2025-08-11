@@ -238,6 +238,12 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       if (emergency) {
         setNotifications(prev => [...prev, `緊急事態: ${emergency.type}`].slice(-5));
       }
+
+      // 戦略的選択肢のチェック
+      const availableChoices = gameFlow.getActiveChoice();
+      if (availableChoices) {
+        setShowStrategicChoice(true);
+      }
       
     } catch (error) {
       console.error('Error using card:', error);
@@ -389,6 +395,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 availableCards={gameState.availableCards}
                 onCardUse={handleCardUse}
                 isLoading={isAdvancingDay}
+                allPlayers={gameState.allPlayers || []}
               />
             </div>
           )}

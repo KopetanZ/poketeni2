@@ -47,6 +47,19 @@ export default function EikanNineMainGame({
   const [hoveredSquare, setHoveredSquare] = useState<GameSquare | null>(null);
   const [managerImage, setManagerImage] = useState<string>('');
   
+  // イベントログとステータス変化の管理
+  const [eventLogs, setEventLogs] = useState<{
+    id: string;
+    type: 'card_use' | 'event' | 'stats_change' | 'special_ability';
+    message: string;
+    details?: string;
+    timestamp: Date;
+    cardName?: string;
+    playerName?: string;
+    statsChanges?: Record<string, number>;
+    specialAbility?: string;
+  }[]>([]);
+  
   // 音響システム初期化
   const soundSystem = useSoundSystem();
   const [soundInitialized, setSoundInitialized] = useState(false);
@@ -151,6 +164,16 @@ export default function EikanNineMainGame({
     '季節によってイベントの内容が変わります'
   ];
 
+  // イベントログを追加する関数
+  const addEventLog = (log: Omit<typeof eventLogs[0], 'id' | 'timestamp'>) => {
+    const newLog = {
+      ...log,
+      id: Date.now().toString(),
+      timestamp: new Date()
+    };
+    setEventLogs(prev => [newLog, ...prev.slice(0, 19)]); // 最新20件を保持
+  };
+
   // 初期化用のuseEffect（1回だけ実行）
   useEffect(() => {
     const randomTip = managerTips[Math.floor(Math.random() * managerTips.length)];
@@ -159,8 +182,20 @@ export default function EikanNineMainGame({
     // ランダムにマネージャー画像を選択
     const randomImage = managerImages[Math.floor(Math.random() * managerImages.length)];
     setManagerImage(randomImage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 空の依存配列で初期化時のみ実行（managerTips, managerImagesは静的配列のため除外）
+    
+    // サンプルログを初期表示
+    addEventLog({
+      type: 'event',
+      message: 'ゲーム開始',
+      details: '栄冠ナイン風テニス部シミュレーターを開始しました'
+    });
+    
+    // 音響システム初期化
+    if (soundSystem) {
+      soundSystem.initializeSound();
+      setSoundInitialized(true);
+    }
+  }, []);
 
   // 音響システム初期化用のuseEffect（分離）
   useEffect(() => {
@@ -268,57 +303,69 @@ export default function EikanNineMainGame({
         {/* 左側：成長ログエリア - レスポンシブ幅 */}
         <div className="w-64 md:w-72 lg:w-80 xl:w-96 bg-white bg-opacity-80 rounded-lg mr-2 p-3 md:p-4 shadow-lg border-2 border-blue-300 overflow-y-auto">
           <h3 className="text-lg font-bold text-blue-800 mb-3 flex items-center">
-            📈 成長ログ
+            📋 イベントログ
           </h3>
           <div className="space-y-2 max-h-60 overflow-y-auto">
-            <div className="bg-green-50 border-l-4 border-green-500 p-2 rounded">
-              <div className="text-sm text-green-800">
-                <div className="font-semibold text-xs">ピカチュウ がレベルアップ！</div>
-                <div className="text-xs text-gray-600">Lv.12 → Lv.13 (サーブ +2)</div>
+            {eventLogs.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <div className="text-2xl mb-2">📝</div>
+                <div className="text-sm">まだイベントがありません</div>
+                <div className="text-xs">カードを使用するとログが表示されます</div>
               </div>
-            </div>
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-2 rounded">
-              <div className="text-sm text-blue-800">
-                <div className="font-semibold text-xs">合同練習で技術向上</div>
-                <div className="text-xs text-gray-600">チーム全体のボレー能力が向上</div>
-              </div>
-            </div>
-            <div className="bg-purple-50 border-l-4 border-purple-500 p-2 rounded">
-              <div className="text-sm text-purple-800">
-                <div className="font-semibold text-xs">リザードン が進化！</div>
-                <div className="text-xs text-gray-600">リザードがリザードンに進化しました</div>
-              </div>
-            </div>
-            <div className="bg-yellow-50 border-l-4 border-yellow-500 p-2 rounded">
-              <div className="text-sm text-yellow-800">
-                <div className="font-semibold text-xs">地区大会優勝！</div>
-                <div className="text-xs text-gray-600">評判+25、資金+5000円獲得</div>
-              </div>
-            </div>
-            <div className="bg-indigo-50 border-l-4 border-indigo-500 p-2 rounded">
-              <div className="text-sm text-indigo-800">
-                <div className="font-semibold text-xs">新入部員加入</div>
-                <div className="text-xs text-gray-600">フシギダネが部活に加入しました</div>
-              </div>
-            </div>
-            <div className="bg-red-50 border-l-4 border-red-500 p-2 rounded">
-              <div className="text-sm text-red-800">
-                <div className="font-semibold text-xs">練習試合で敗北</div>
-                <div className="text-xs text-gray-600">○○高校に0-3で敗北</div>
-              </div>
-            </div>
-            <div className="bg-pink-50 border-l-4 border-pink-500 p-2 rounded">
-              <div className="text-sm text-pink-800">
-                <div className="font-semibold text-xs">特別練習実施</div>
-                <div className="text-xs text-gray-600">精神力強化練習を実施</div>
-              </div>
-            </div>
-            <div className="bg-teal-50 border-l-4 border-teal-500 p-2 rounded">
-              <div className="text-sm text-teal-800">
-                <div className="font-semibold text-xs">装備を入手</div>
-                <div className="text-xs text-gray-600">プロ用ラケットを獲得</div>
-              </div>
-            </div>
+            ) : (
+              eventLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className={`p-3 rounded-lg border-l-4 text-sm ${
+                    log.type === 'card_use' ? 'bg-blue-50 border-blue-500 text-blue-800' :
+                    log.type === 'event' ? 'bg-purple-50 border-purple-500 text-purple-800' :
+                    log.type === 'stats_change' ? 'bg-green-50 border-green-500 text-green-800' :
+                    log.type === 'special_ability' ? 'bg-yellow-50 border-yellow-500 text-yellow-800' :
+                    'bg-gray-50 border-gray-500 text-gray-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="font-semibold text-xs">
+                      {log.type === 'card_use' ? '🎯' : 
+                       log.type === 'event' ? '🎉' : 
+                       log.type === 'stats_change' ? '📈' : 
+                       log.type === 'special_ability' ? '⭐' : '📝'} {log.message}
+                    </div>
+                    <div className="text-xs opacity-75">
+                      {log.timestamp.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  {log.details && (
+                    <div className="text-xs opacity-80 mb-1">{log.details}</div>
+                  )}
+                  {log.cardName && (
+                    <div className="text-xs font-medium text-blue-600">カード: {log.cardName}</div>
+                  )}
+                  {log.playerName && (
+                    <div className="text-xs font-medium text-green-600">選手: {log.playerName}</div>
+                  )}
+                  {log.statsChanges && (
+                    <div className="text-xs mt-1">
+                      {Object.entries(log.statsChanges).map(([stat, change]) => (
+                        <span
+                          key={stat}
+                          className={`inline-block mr-2 px-1 py-0.5 rounded text-xs ${
+                            change > 0 ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                          }`}
+                        >
+                          {stat}: {change > 0 ? '+' : ''}{change}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {log.specialAbility && (
+                    <div className="text-xs mt-1 bg-yellow-200 text-yellow-800 px-2 py-1 rounded">
+                      ✨ 特殊能力: {log.specialAbility}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -400,7 +447,7 @@ export default function EikanNineMainGame({
                 } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 onClick={() => !isLoading && setSelectedCard(isSelected ? null : card)}
               >
-                <div className={`h-20 sm:h-22 md:h-24 lg:h-28 rounded-lg p-2 text-white text-center flex flex-col justify-between shadow-lg border-2 ${
+                <div className={`h-20 sm:h-22 md:h-24 lg:h-28 rounded-lg p-2 text-white text-center flex flex-col justify-between shadow-lg border-2 relative ${
                   isSelected ? 'border-yellow-400 shadow-yellow-500/25' : 'border-transparent'
                 } ${
                   card.rarity === 'legendary' ? 'bg-gradient-to-br from-purple-600 to-pink-600' :
@@ -408,6 +455,11 @@ export default function EikanNineMainGame({
                   card.rarity === 'uncommon' ? 'bg-gradient-to-br from-green-500 to-teal-600' :
                   'bg-gradient-to-br from-gray-500 to-slate-600'
                 }`}>
+                  {/* 進むマス数表示（右上） */}
+                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-white shadow-lg">
+                    <span className="text-white text-xs font-bold">{card.number}</span>
+                  </div>
+                  
                   <div className="text-xs font-bold truncate">{card.name}</div>
                   <div className="text-sm md:text-lg font-bold">{card.number}日</div>
                 </div>
@@ -426,6 +478,15 @@ export default function EikanNineMainGame({
               if (soundInitialized) {
                 soundSystem.playSFX(SoundControls.SFX_TYPES.cardUse);
               }
+              
+              // カード使用ログを追加
+              addEventLog({
+                type: 'card_use',
+                message: `${selectedCard.name}を使用`,
+                details: `${selectedCard.number}マス進みます`,
+                cardName: selectedCard.name
+              });
+              
               onCardUse(selectedCard.id);
               setSelectedCard(null);
             }}

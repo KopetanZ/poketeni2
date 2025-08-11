@@ -44,6 +44,22 @@ export interface GameState {
     successfulChoices: number;
     legendaryCardsObtained: number;
   };
+
+  // イベント履歴
+  eventHistory?: {
+    id: string;
+    eventType: 'seasonal' | 'hidden' | 'square_effect' | 'card_effect';
+    eventId: string;
+    eventName: string;
+    description: string;
+    eventDate: {
+      year: number;
+      month: number;
+      day: number;
+    };
+    source: string;
+    createdAt: Date;
+  }[];
 }
 
 export class IntegratedGameFlow {
@@ -73,7 +89,8 @@ export class IntegratedGameFlow {
         totalCardsUsed: 0,
         successfulChoices: 0,
         legendaryCardsObtained: 0
-      }
+      },
+      eventHistory: []
     };
 
     this.initializeDailyFlow();
@@ -376,20 +393,119 @@ export class IntegratedGameFlow {
     if (effects.reputationChange !== undefined) {
       this.gameState.schoolStats.reputation = Math.max(0, Math.min(100, this.gameState.schoolStats.reputation + effects.reputationChange));
     }
+
+    // イベント履歴に記録（マス目効果）
+    this.recordEventHistory('square_effect', squareEffect.type, squareEffect.name, dayResult);
   }
 
   // 季節イベント効果の適用
   private applySeasonalEvent(event: SeasonalEvent): void {
     // 季節イベントの効果を実装
     // 資金、評判、プレイヤー状態等の変化
+    if (event.effects.funds) {
+      this.gameState.schoolStats.funds = Math.max(0, this.gameState.schoolStats.funds + event.effects.funds);
+    }
+    if (event.effects.schoolReputation) {
+      this.gameState.schoolStats.reputation = Math.max(0, Math.min(100, this.gameState.schoolStats.reputation + event.effects.schoolReputation));
+    }
+    if (event.effects.playerMotivation && this.gameState.allPlayers) {
+      this.gameState.allPlayers.forEach(player => {
+        player.motivation = Math.max(0, Math.min(100, player.motivation + event.effects.playerMotivation!));
+      });
+    }
+    
     console.log('Seasonal event applied:', event.name);
+    
+    // イベント履歴に記録
+    this.recordEventHistory('seasonal', event.id, event.name, this.gameState.currentDay);
   }
 
   // 隠しイベント効果の適用
   private applyHiddenEvent(event: HiddenEvent): void {
     // 隠しイベントの効果を実装
     // ランダムな効果や特別な報酬
+    if (event.effects.intensiveTraining && this.gameState.allPlayers) {
+      // 特訓効果の適用
+      this.gameState.allPlayers.forEach(player => {
+        if (Math.random() < 0.3) { // 30%の確率で特訓成功
+          player.experience += 50;
+          player.motivation += 10;
+        }
+      });
+    }
+    
     console.log('Hidden event applied:', event.name);
+    
+    // イベント履歴に記録
+    this.recordEventHistory('hidden', event.id, event.name, this.gameState.currentDay);
+  }
+
+  // イベント履歴の記録
+  private recordEventHistory(
+    eventType: 'seasonal' | 'hidden' | 'square_effect' | 'card_effect',
+    eventId: string,
+    eventName: string,
+    eventDate: CalendarDay
+  ): void {
+    // イベント履歴をメモリに保存（後でデータベースに永続化）
+    if (!this.gameState.eventHistory) {
+      this.gameState.eventHistory = [];
+    }
+    
+    this.gameState.eventHistory.push({
+      id: crypto.randomUUID(),
+      eventType,
+      eventId,
+      eventName,
+      description: `${eventType === 'square_effect' ? 'マス目効果' : eventType === 'seasonal' ? '季節イベント' : '隠しイベント'}: ${eventName}`,
+      eventDate: {
+        year: eventDate.year,
+        month: eventDate.month,
+        day: eventDate.day
+      },
+      source: 'card_progress',
+      createdAt: new Date()
+    });
+
+    // データベースへの永続化（非同期）
+    this.persistEventHistoryToDatabase(
+      eventType,
+      eventId,
+      eventName,
+      eventDate
+    );
+  }
+
+  // イベント履歴をデータベースに永続化
+  private async persistEventHistoryToDatabase(
+    eventType: 'seasonal' | 'hidden' | 'square_effect' | 'card_effect',
+    eventId: string,
+    eventName: string,
+    eventDate: CalendarDay
+  ): Promise<void> {
+    try {
+      // Supabaseクライアントのインポート（必要に応じて）
+      const { supabase } = await import('./supabase');
+      
+      const { error } = await supabase
+        .from('event_history')
+        .insert({
+          event_type: eventType,
+          event_id: eventId,
+          event_name: eventName,
+          description: `${eventType === 'square_effect' ? 'マス目効果' : eventType === 'seasonal' ? '季節イベント' : '隠しイベント'}: ${eventName}`,
+          event_date_year: eventDate.year,
+          event_date_month: eventDate.month,
+          event_date_day: eventDate.day,
+          source: 'card_progress'
+        });
+
+      if (error) {
+        console.error('Failed to persist event history:', error);
+      }
+    } catch (error) {
+      console.error('Error persisting event history:', error);
+    }
   }
 
   // 戦略的選択実行
@@ -543,25 +659,74 @@ export class IntegratedGameFlow {
     }
   }
 
-  // レベルアップ判定（全部員対象）
+  // レベルアップチェック（全部員対象）
   private checkLevelUpForAllPlayers(): void {
-    const experienceThresholds = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500];
-    const playersToCheck = this.gameState.allPlayers || [this.gameState.player];
-
-    playersToCheck.forEach(player => {
+    if (!this.gameState.allPlayers) return;
+    
+    this.gameState.allPlayers.forEach(player => {
       const currentLevel = player.level || 1;
+      const requiredExp = currentLevel * 100; // レベルアップに必要な経験値
       
-      if (currentLevel < experienceThresholds.length - 1) {
-        const nextThreshold = experienceThresholds[currentLevel];
-        if (player.experience >= nextThreshold) {
-          player.level = currentLevel + 1;
-          // レベルアップ時の基本能力向上
-          ['serve_skill', 'return_skill', 'volley_skill', 'stroke_skill', 'mental', 'stamina'].forEach(skill => {
-            (player as any)[skill] = ((player as any)[skill] || 0) + 2;
-          });
-        }
+      if (player.experience >= requiredExp) {
+        // レベルアップ処理
+        player.level = currentLevel + 1;
+        player.experience -= requiredExp;
+        
+        // スキル成長（レベルアップボーナス）
+        const skillBonus = 5; // レベルアップ時のスキルボーナス
+        player.serve_skill = Math.min(100, player.serve_skill + skillBonus);
+        player.return_skill = Math.min(100, player.return_skill + skillBonus);
+        player.volley_skill = Math.min(100, player.volley_skill + skillBonus);
+        player.stroke_skill = Math.min(100, player.stroke_skill + skillBonus);
+        player.mental = Math.min(100, player.mental + skillBonus);
+        player.stamina = Math.min(100, player.stamina + skillBonus);
+        
+        // 進化チェック
+        this.checkEvolutionPossibility(player);
       }
     });
+  }
+
+  // 進化可能性チェック
+  private checkEvolutionPossibility(player: Player): void {
+    // 進化条件のチェック
+    const canEvolve = this.checkEvolutionConditions(player);
+    
+    if (canEvolve) {
+      // 進化可能な状態を設定（awakeningシステムを使用）
+      if (!player.awakening) {
+        player.awakening = {
+          isEligible: true,
+          hasAwakened: false,
+          awakeningChance: 1.0,
+          matchesPlayed: 0
+        };
+      } else {
+        player.awakening.isEligible = true;
+        player.awakening.awakeningChance = 1.0;
+      }
+    }
+  }
+
+  // 進化条件チェック
+  private checkEvolutionConditions(player: Player): boolean {
+    // レベル条件
+    const levelCondition = (player.level || 1) >= 20;
+    
+    // スキル条件（平均スキルが一定以上）
+    const avgSkill = (
+      (player.serve_skill + player.return_skill + player.volley_skill + 
+       player.stroke_skill + player.mental + player.stamina) / 6
+    );
+    const skillCondition = avgSkill >= 60;
+    
+    // 経験値条件
+    const expCondition = (player.experience || 0) >= 500;
+    
+    // やる気条件
+    const motivationCondition = (player.motivation || 0) >= 70;
+    
+    return levelCondition && skillCondition && expCondition && motivationCondition;
   }
 
   // レベルアップ判定（単体プレイヤー用・後方互換）
