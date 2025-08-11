@@ -20,6 +20,7 @@ import { Badge } from '../ui/badge';
 import { EvolutionSystem } from '@/lib/evolution-system';
 import { EvolutionModal } from '@/components/evolution/EvolutionModal';
 import { supabase } from '@/lib/supabase';
+import { EventHistoryDisplay } from '../events/EventHistoryDisplay';
 
 interface IntegratedGameInterfaceProps {
   initialPlayer: Player;
@@ -48,7 +49,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [gameState, setGameState] = useState<GameState>(gameFlow.getGameState());
   
   // UI状態管理
-  const [activeTab, setActiveTab] = useState<'sugoroku' | 'calendar' | 'stats'>('sugoroku');
+  const [activeTab, setActiveTab] = useState<'sugoroku' | 'calendar' | 'stats' | 'events'>('sugoroku');
   const [showStrategicChoice, setShowStrategicChoice] = useState(false);
   const [showCardResult, setShowCardResult] = useState(false);
   const [showSeasonalEvent, setShowSeasonalEvent] = useState(false);
@@ -61,6 +62,19 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [notifications, setNotifications] = useState<string[]>([]);
   const [isAdvancingDay, setIsAdvancingDay] = useState(false);
 
+  // イベントログとステータス変化の管理
+  const [eventLogs, setEventLogs] = useState<{
+    id: string;
+    type: 'card_use' | 'event' | 'stats_change' | 'special_ability';
+    message: string;
+    details?: string;
+    timestamp: Date;
+    cardName?: string;
+    playerName?: string;
+    statsChanges?: Record<string, number>;
+    specialAbility?: string;
+  }[]>([]);
+
   // 進化モーダル管理
   const [showEvolutionModal, setShowEvolutionModal] = useState(false);
   const [evolutionTarget, setEvolutionTarget] = useState<Player | null>(null);
@@ -71,11 +85,28 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     setGameState(gameFlow.getGameState());
   };
 
+  // イベントログを追加する関数
+  const addEventLog = (log: Omit<typeof eventLogs[0], 'id' | 'timestamp'>) => {
+    const newLog = {
+      ...log,
+      id: Date.now().toString(),
+      timestamp: new Date()
+    };
+    setEventLogs(prev => [newLog, ...prev.slice(0, 19)]); // 最新20件を保持
+  };
+
   // 全部員データの更新監視
   useEffect(() => {
     if (allPlayers && allPlayers.length > 0) {
       gameFlow.updateAllPlayers(allPlayers);
       syncGameState();
+      
+      // ゲーム開始ログを追加
+      addEventLog({
+        type: 'event',
+        message: 'ゲーム開始',
+        details: '栄冠ナイン風テニス部シミュレーターを開始しました'
+      });
     }
   }, [allPlayers, gameFlow]);
 
@@ -138,12 +169,22 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       const card = gameState.availableCards.find(c => c.id === cardId);
       if (!card) return;
 
+      // 進行前の状態を保存
+      const stateBefore = gameFlow.getGameState();
+      const originalDayCount = stateBefore.dayCount;
+
       // IntegratedGameFlow の useTrainingCard を呼び出し（すごろく進行含む）
       const result = gameFlow.useTrainingCard(card);
       
       setLastCardResult(result);
       setShowCardResult(true);
-      syncGameState();
+      
+      // 日付進行のアニメーション用に一時的に状態を保持
+      // アニメーション完了後にsyncGameStateを呼び出し
+      setTimeout(() => {
+        syncGameState();
+        setIsAdvancingDay(false);
+      }, 2000); // 2秒後に状態を同期
       
       // プレイヤー能力・経験値の永続化（全部員対象）
       (async () => {
@@ -174,12 +215,29 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       const progressNotifications: string[] = [];
       if (result.success) {
         progressNotifications.push(`${card.name}: ${result.successLevel}`);
+        
+        // カード使用ログを追加
+        addEventLog({
+          type: 'card_use',
+          message: `${card.name}を使用`,
+          details: `${result.daysProgressed}マス進みました`,
+          cardName: card.name
+        });
       }
       progressNotifications.push(`${result.daysProgressed}日進行しました`);
       
       // イベント通知
       if (result.triggeredEvents.length > 0) {
         progressNotifications.push(`イベント発生: ${result.triggeredEvents.length}件`);
+        
+        // イベントログを追加
+        result.triggeredEvents.forEach(eventId => {
+          addEventLog({
+            type: 'event',
+            message: `イベント発生: ${eventId}`,
+            details: 'マス目で特別なイベントが発生しました'
+          });
+        });
       }
       
       // 進化可能チェック（新規のみ）
@@ -384,10 +442,86 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
           >
             📊 統計
           </Button>
+          <Button
+            onClick={() => setActiveTab('events')}
+            variant={activeTab === 'events' ? 'default' : 'outline'}
+            className="flex items-center gap-2"
+          >
+            📋 イベント履歴
+          </Button>
         </div>
 
         {/* タブコンテンツ */}
         <div className="space-y-6">
+          {/* イベントログ表示エリア */}
+          <div className="bg-white bg-opacity-90 rounded-lg p-4 shadow-lg border-2 border-blue-300">
+            <h3 className="text-lg font-bold text-blue-800 mb-3 flex items-center">
+              📋 イベントログ
+            </h3>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {eventLogs.length === 0 ? (
+                <div className="text-center py-4 text-gray-500">
+                  <div className="text-lg mb-1">📝</div>
+                  <div className="text-sm">まだイベントがありません</div>
+                  <div className="text-xs">カードを使用するとログが表示されます</div>
+                </div>
+              ) : (
+                eventLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className={`p-2 rounded-lg border-l-4 text-xs ${
+                      log.type === 'card_use' ? 'bg-blue-50 border-blue-500 text-blue-800' :
+                      log.type === 'event' ? 'bg-purple-50 border-purple-500 text-purple-800' :
+                      log.type === 'stats_change' ? 'bg-green-50 border-green-500 text-green-800' :
+                      log.type === 'special_ability' ? 'bg-yellow-50 border-yellow-500 text-yellow-800' :
+                      'bg-gray-50 border-gray-500 text-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-1">
+                      <div className="font-semibold">
+                        {log.type === 'card_use' ? '🎯' : 
+                         log.type === 'event' ? '🎉' : 
+                         log.type === 'stats_change' ? '📈' : 
+                         log.type === 'special_ability' ? '⭐' : '📝'} {log.message}
+                      </div>
+                      <div className="opacity-75">
+                        {log.timestamp.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                    {log.details && (
+                      <div className="opacity-80 mb-1">{log.details}</div>
+                    )}
+                    {log.cardName && (
+                      <div className="font-medium text-blue-600">カード: {log.cardName}</div>
+                    )}
+                    {log.playerName && (
+                      <div className="font-medium text-green-600">選手: {log.playerName}</div>
+                    )}
+                    {log.statsChanges && (
+                      <div className="mt-1">
+                        {Object.entries(log.statsChanges).map(([stat, change]) => (
+                          <span
+                            key={stat}
+                            className={`inline-block mr-1 px-1 py-0.5 rounded text-xs ${
+                              change > 0 ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                            }`}
+                          >
+                            {stat}: {change > 0 ? '+' : ''}{change}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {log.specialAbility && (
+                      <div className="mt-1 bg-yellow-200 text-yellow-800 px-1 py-0.5 rounded text-xs">
+                        ✨ 特殊能力: {log.specialAbility}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {activeTab === 'sugoroku' && (
             <div className="h-[800px]">
               <SugorokuTrainingBoard
@@ -395,7 +529,6 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 availableCards={gameState.availableCards}
                 onCardUse={handleCardUse}
                 isLoading={isAdvancingDay}
-                allPlayers={gameState.allPlayers || []}
               />
             </div>
           )}
@@ -504,6 +637,12 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          )}
+
+          {activeTab === 'events' && schoolId && (
+            <div className="h-[800px]">
+              <EventHistoryDisplay schoolId={schoolId} />
             </div>
           )}
         </div>
