@@ -53,7 +53,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
       } catch (err) {
         console.error(`Failed to load Pokemon data for ${player.pokemon_name}:`, err);
         setError(true);
-        setImageUrl('/pokemon-fallback.png');
+        setImageUrl('/pokemon-fallback.svg');
         setPokemonTypes(['normal']);
       } finally {
         setLoading(false);

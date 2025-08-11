@@ -365,9 +365,8 @@ export function useGameData() {
         // 特殊能力データを追加（JSONB形式でデータベースに保存）
         special_abilities: player.special_abilities || [],
         // ポケモン種族情報も保存
-        types: player.types || ['normal'],
-        // 個体値情報があれば保存
-        pokemon_stats: player.pokemon_stats || null
+        types: player.types || ['normal']
+        // pokemon_statsカラムは現在のデータベーススキーマに存在しないため除外
         // 戦績カラムは一時的に除外
       }));
 

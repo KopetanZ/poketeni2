@@ -529,10 +529,10 @@ export class PokemonAPI {
         englishName: mapping?.english || 'unknown',
         types: mapping?.type || ['normal'],
         sprites: {
-          default: '/pokemon-fallback.png',
-          shiny: '/pokemon-fallback.png',
-          official: '/pokemon-fallback.png',
-          home: '/pokemon-fallback.png',
+          default: '/pokemon-fallback.svg',
+          shiny: '/pokemon-fallback.svg',
+          official: '/pokemon-fallback.svg',
+          home: '/pokemon-fallback.svg',
         },
         stats: { hp: 45, attack: 49, defense: 49, speed: 45 },
         height: 0,
@@ -559,12 +559,12 @@ export class PokemonAPI {
           name,
           englishName: mapping?.english || 'unknown',
           types: mapping?.type || ['normal'],
-          sprites: {
-            default: '/pokemon-fallback.png',
-            shiny: '/pokemon-fallback.png', 
-            official: '/pokemon-fallback.png',
-            home: '/pokemon-fallback.png',
-          },
+                  sprites: {
+          default: '/pokemon-fallback.svg',
+          shiny: '/pokemon-fallback.svg', 
+          official: '/pokemon-fallback.svg',
+          home: '/pokemon-fallback.svg',
+        },
           stats: { hp: 45, attack: 49, defense: 49, speed: 45 },
           height: 0,
           weight: 0
@@ -578,7 +578,7 @@ export class PokemonAPI {
     if (preferOfficial && sprites.official) return sprites.official;
     if (sprites.home) return sprites.home;
     if (sprites.default) return sprites.default;
-    return '/pokemon-fallback.png';
+    return '/pokemon-fallback.svg';
   }
 
   // タイプ別カラーマッピング
@@ -657,7 +657,7 @@ export const pokemonUtils = {
       return PokemonAPI.getBestImageUrl(details.sprites, preferOfficial);
     } catch (error) {
       console.error(`Failed to get image for ${pokemonName}:`, error);
-      return '/pokemon-fallback.png';
+      return '/pokemon-fallback.svg';
     }
   },
 

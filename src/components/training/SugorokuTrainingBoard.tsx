@@ -50,10 +50,12 @@ export default function SugorokuTrainingBoard({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [advancementProgress, setAdvancementProgress] = useState(0);
   const [currentAdvancingPosition, setCurrentAdvancingPosition] = useState(currentPosition);
-  const [player1Image, setPlayer1Image] = useState<string>('/pokemon-fallback.png');
-  const [player2Image, setPlayer2Image] = useState<string>('/pokemon-fallback.png');
+  const [player1Image, setPlayer1Image] = useState<string>('/pokemon-fallback.svg');
+  const [player2Image, setPlayer2Image] = useState<string>('/pokemon-fallback.svg');
   const [ballPosition, setBallPosition] = useState({ x: 50, y: 50 });
   const [ballDirection, setBallDirection] = useState<'left' | 'right'>('right');
+  const [managerImage, setManagerImage] = useState<string>('');
+  const [managerTip, setManagerTip] = useState<string>('');
 
   // ポケモン画像の取得
   useEffect(() => {
@@ -74,12 +76,21 @@ export default function SugorokuTrainingBoard({
     loadPokemonImages();
   }, [allPlayers]);
 
+  // マネージャー画像とtipsの初期化（1回だけ実行）
+  useEffect(() => {
+    if (!managerImage || !managerTip) {
+      const randomImage = MANAGER_IMAGE_PATHS[Math.floor(Math.random() * MANAGER_IMAGE_PATHS.length)];
+      const randomTip = MANAGER_TIPS[Math.floor(Math.random() * MANAGER_TIPS.length)];
+      setManagerImage(randomImage);
+      setManagerTip(randomTip);
+    }
+  }, [managerImage, managerTip]);
+
   // テニスボール打ち合いアニメーション
   useEffect(() => {
     const interval = setInterval(() => {
       setBallPosition(prev => {
-        const newDirection = prev.x <= 20 ? 'right' : prev.x >= 80 ? 'left' : ballDirection;
-        setBallDirection(newDirection);
+        const newDirection = prev.x <= 20 ? 'right' : prev.x >= 80 ? 'left' : prev.x <= 20 || prev.x >= 80 ? ballDirection : ballDirection;
         
         const speed = 2;
         const newX = newDirection === 'right' ? prev.x + speed : prev.x - speed;
@@ -90,7 +101,7 @@ export default function SugorokuTrainingBoard({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [ballDirection]);
+  }, []); // ballDirectionを依存配列から削除
 
   // カード使用処理（アニメーション付き）
   const handleCardUse = async (cardId: string) => {
@@ -335,7 +346,7 @@ export default function SugorokuTrainingBoard({
               alt={allPlayers[0]?.pokemon_name || 'Player 1'} 
               className="w-full h-full object-contain bg-gradient-to-br from-blue-100 to-blue-200"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = '/pokemon-fallback.png';
+                (e.target as HTMLImageElement).src = '/pokemon-fallback.svg';
               }}
             />
           </div>
@@ -347,7 +358,7 @@ export default function SugorokuTrainingBoard({
               alt={allPlayers[1]?.pokemon_name || 'Player 2'} 
               className="w-full h-full object-contain bg-gradient-to-br from-red-100 to-red-200 scale-x-[-1]"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = '/pokemon-fallback.png';
+                (e.target as HTMLImageElement).src = '/pokemon-fallback.svg';
               }}
             />
           </div>
@@ -385,7 +396,7 @@ export default function SugorokuTrainingBoard({
             {/* マネージャー画像 */}
             <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden ring-4 ring-slate-500/50">
               <img 
-                src={MANAGER_IMAGE_PATHS[Math.floor(Math.random() * MANAGER_IMAGE_PATHS.length)]} 
+                src={managerImage} 
                 alt="Manager" 
                 className="w-full h-full object-cover"
               />
@@ -393,7 +404,7 @@ export default function SugorokuTrainingBoard({
             {/* 一言tips */}
             <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/30">
               <p className="text-slate-300 text-sm italic">
-                &ldquo;{MANAGER_TIPS[Math.floor(Math.random() * MANAGER_TIPS.length)]}&rdquo;
+                &ldquo;{managerTip}&rdquo;
               </p>
             </div>
           </div>
