@@ -190,59 +190,8 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     if (allPlayers && allPlayers.length > 0) {
       gameFlow.updateAllPlayers(allPlayers);
       
-      // ゲーム状態からカレンダーシステムの状態を復元（初回のみ）
-      if (gameState?.currentDay) {
-        console.log('ゲーム状態からカレンダー状態を復元:', gameState.currentDay);
-        
-        // カレンダーシステムの状態を正しく復元
-        try {
-          const calendarSystem = gameFlow.getGameState().calendarSystem;
-          if (calendarSystem && gameState.currentDay) {
-            // データベースから読み取った日付でカレンダーシステムを初期化
-            const targetDate = {
-              year: gameState.currentDay.year,
-              month: gameState.currentDay.month,
-              day: gameState.currentDay.day
-            };
-            
-            // IntegratedGameFlowの新しいメソッドを使用
-            if (typeof gameFlow.initializeCalendarWithDate === 'function') {
-              gameFlow.initializeCalendarWithDate(targetDate.year, targetDate.month, targetDate.day);
-              console.log('カレンダー状態復元完了（initializeCalendarWithDate使用）:', targetDate);
-            } else {
-              // フォールバック: 直接カレンダーシステムに設定
-              if (typeof calendarSystem.setCurrentDate === 'function') {
-                calendarSystem.setCurrentDate(targetDate.year, targetDate.month, targetDate.day);
-                console.log('カレンダー状態復元完了（setCurrentDate使用）:', targetDate);
-              } else {
-                // フォールバック: 古い方法（互換性のため）
-                if (calendarSystem['currentState'] && calendarSystem['currentState'].currentDate) {
-                  // 現在の日付を更新
-                  calendarSystem['currentState'].currentDate = {
-                    ...calendarSystem['currentState'].currentDate,
-                    year: targetDate.year,
-                    month: targetDate.month,
-                    day: targetDate.day
-                  };
-                  
-                  // 週と曜日も再計算
-                  const date = new Date(2024, targetDate.month - 1, targetDate.day);
-                  const dayOfWeek = date.getDay();
-                  const week = Math.ceil(targetDate.day / 7) as any;
-                  
-                  calendarSystem['currentState'].currentDate.dayOfWeek = dayOfWeek;
-                  calendarSystem['currentState'].currentDate.week = week;
-                  
-                  console.log('カレンダー状態復元完了（フォールバック）:', calendarSystem['currentState'].currentDate);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('カレンダー状態復元エラー:', error);
-        }
-      }
-      
+      // カレンダー状態の復元はgameDataInitializedイベントで処理するため、
+      // ここでは基本的なゲーム状態の同期のみ行う
       syncGameState();
       
       // ゲーム開始ログを追加
@@ -271,6 +220,17 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
             
             // 状態を同期
             syncGameState();
+            
+            // ゲーム状態も更新
+            setGameState(prevState => ({
+              ...prevState,
+              currentDay: {
+                ...prevState.currentDay,
+                year: currentDate.year,
+                month: currentDate.month,
+                day: currentDate.day
+              }
+            }));
           }
         } catch (error) {
           console.error('gameDataInitialized: カレンダー状態初期化エラー:', error);

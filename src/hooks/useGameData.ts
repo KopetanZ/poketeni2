@@ -163,13 +163,17 @@ export function useGameData() {
       // カレンダーシステムの状態を正しく初期化するためのコールバックを提供
       // これにより、IntegratedGameInterfaceでカレンダーの状態を復元できる
       if (typeof window !== 'undefined') {
-        // グローバルイベントとして発火（IntegratedGameInterfaceで受信）
-        window.dispatchEvent(new CustomEvent('gameDataInitialized', {
-          detail: {
-            currentDate,
-            schoolId: school.id
-          }
-        }));
+        // 少し遅延を入れて、Reactの状態更新が完了してからイベントを発火
+        setTimeout(() => {
+          // グローバルイベントとして発火（IntegratedGameInterfaceで受信）
+          window.dispatchEvent(new CustomEvent('gameDataInitialized', {
+            detail: {
+              currentDate,
+              schoolId: school.id
+            }
+          }));
+          console.log('useGameData: gameDataInitializedイベントを発火しました:', currentDate);
+        }, 100);
       }
       
       console.log('useGameData: Game data initialization completed successfully');
