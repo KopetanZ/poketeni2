@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CalendarSystem, SQUARE_EFFECTS, WEATHER_EFFECTS, COURT_EFFECTS } from '../../lib/calendar-system';
 import { CalendarDay, CalendarState, SquareType, EventEffect } from '../../types/calendar';
 import { SeasonalEventModal } from '../events/SeasonalEventModal';
@@ -14,6 +14,10 @@ interface CalendarViewProps {
   onDayAdvance?: (day: CalendarDay) => void;
   onSquareEffect?: (effectBonus: number) => void;
   onEventEffect?: (effects: EventEffect) => void;
+  // カレンダーシステムの外部管理用
+  calendarSystem?: CalendarSystem;
+  currentState?: CalendarState;
+  onCalendarStateChange?: (newState: CalendarState) => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ 
@@ -21,10 +25,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   schoolReputation = 50, 
   onDayAdvance, 
   onSquareEffect, 
-  onEventEffect 
+  onEventEffect,
+  calendarSystem: externalCalendarSystem,
+  currentState: externalCurrentState,
+  onCalendarStateChange
 }) => {
-  const [calendarSystem] = useState(() => new CalendarSystem());
-  const [currentState, setCurrentState] = useState<CalendarState>(calendarSystem.getCurrentState());
+  // 外部からカレンダーシステムが提供されている場合はそれを使用、そうでなければ内部で管理
+  const [internalCalendarSystem] = useState(() => new CalendarSystem());
+  const calendarSystem = externalCalendarSystem || internalCalendarSystem;
+  
+  // 外部から状態が提供されている場合はそれを使用、そうでなければ内部で管理
+  const [internalCurrentState, setInternalCurrentState] = useState<CalendarState>(calendarSystem.getCurrentState());
+  const currentState = externalCurrentState || internalCurrentState;
+  
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
 
@@ -54,7 +67,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     
     // 次の日へ
     const nextDay = calendarSystem.advanceDay();
-    setCurrentState(calendarSystem.getCurrentState());
+    const newState = calendarSystem.getCurrentState();
+    
+    // 状態更新
+    if (onCalendarStateChange) {
+      onCalendarStateChange(newState);
+    } else {
+      setInternalCurrentState(newState);
+    }
     
     if (onDayAdvance) {
       onDayAdvance(nextDay);

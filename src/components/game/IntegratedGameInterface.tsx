@@ -542,6 +542,12 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 setNotifications(prev => [...prev, `マス効果: ${effectBonus > 0 ? '+' : ''}${effectBonus}%`].slice(-5));
               }}
               onEventEffect={handleSeasonalEvent}
+              calendarSystem={gameFlow.getGameState().calendarSystem}
+              currentState={gameFlow.getGameState().calendarSystem.getCurrentState()}
+              onCalendarStateChange={(newState) => {
+                // カレンダー状態の変更をゲームフローに反映
+                // この部分は必要に応じて実装
+              }}
             />
           )}
 

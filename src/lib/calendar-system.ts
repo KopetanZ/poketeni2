@@ -309,6 +309,7 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
 
 export class CalendarSystem {
   private currentState: CalendarState;
+  private isInitialized: boolean = false;
 
   constructor(startYear: number = 1) {
     this.currentState = {
@@ -325,6 +326,18 @@ export class CalendarSystem {
     };
 
     this.generateYearCalendar();
+    this.isInitialized = true;
+  }
+
+  // 既存の状態から復元するためのメソッド
+  public restoreFromState(state: CalendarState): void {
+    this.currentState = { ...state };
+    this.isInitialized = true;
+  }
+
+  // 初期化状態の確認
+  public get isReady(): boolean {
+    return this.isInitialized;
   }
 
   // 年間カレンダー生成
@@ -406,19 +419,35 @@ export class CalendarSystem {
       probabilities.blue += 5; // 週末前の頑張り
     }
 
-    // 確率に基づく選択
+    // 確率に基づく選択（確定的な疑似乱数を使用）
+    const seed = month * 1000 + week * 100 + dayOfWeek;
+    const random = this.deterministicRandom(seed);
     const total = Object.values(probabilities).reduce((sum, val) => sum + val, 0);
-    const random = Math.random() * total;
+    const randomValue = random * total;
     let current = 0;
 
     for (const [square, prob] of Object.entries(probabilities)) {
       current += prob;
-      if (random <= current) {
+      if (randomValue <= current) {
         return square as SquareType;
       }
     }
 
     return 'white'; // フォールバック
+  }
+
+  // 確定的な疑似乱数生成（同じ入力に対して同じ結果を返す）
+  private deterministicRandom(seed: number): number {
+    // シンプルな線形合同法
+    const a = 1664525;
+    const c = 1013904223;
+    const m = Math.pow(2, 32);
+    
+    // シードを32ビット整数に変換
+    let x = (seed * a + c) % m;
+    x = (x * a + c) % m; // もう一度適用してより良い分布に
+    
+    return x / m; // 0-1の範囲に正規化
   }
 
   // 天候生成
@@ -439,12 +468,19 @@ export class CalendarSystem {
     };
 
     const options = seasonalWeather[month] || ['sunny', 'cloudy'];
-    return options[Math.floor(Math.random() * options.length)];
+    // 確定的な選択（月と週に基づく）
+    const seed = month * 100 + Math.ceil(month / 2);
+    const random = this.deterministicRandom(seed);
+    const index = Math.floor(random * options.length);
+    return options[index];
   }
 
   // コート状況生成
   private generateCourtCondition(): CourtCondition {
-    const random = Math.random();
+    // 確定的な疑似乱数を使用（日付に基づく）
+    const seed = this.currentState.currentDate.month * 100 + this.currentState.currentDate.day;
+    const random = this.deterministicRandom(seed);
+    
     if (random < 0.1) return 'excellent';
     if (random < 0.3) return 'good';
     if (random < 0.7) return 'normal';

@@ -67,9 +67,14 @@ export class IntegratedGameFlow {
   private schoolId: string;
   
   constructor(initialPlayer: Player, initialSchoolStats: any, schoolId: string, allPlayers?: Player[]) {
+    this.schoolId = schoolId;
+    
+    // カレンダーシステムの初期化
+    const calendarSystem = new CalendarSystem();
+    
     this.gameState = {
-      calendarSystem: new CalendarSystem(),
-      currentDay: new CalendarSystem().getCurrentState().currentDate,
+      calendarSystem: calendarSystem,
+      currentDay: calendarSystem.getCurrentState().currentDate,
       player: initialPlayer,
       allPlayers: allPlayers,
       schoolStats: {
@@ -503,9 +508,19 @@ export class IntegratedGameFlow {
         });
 
       if (error) {
+        // 403エラー（権限不足）の場合は処理をスキップ
+        if (error.code === '403' || error.message?.includes('403')) {
+          console.warn('Event history persistence skipped due to permission issues:', error.message);
+          return;
+        }
         console.error('Failed to persist event history:', error);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // 権限関連のエラーの場合は処理をスキップ
+      if (error?.status === 403 || error?.message?.includes('403') || error?.code === '403') {
+        console.warn('Event history persistence skipped due to permission issues');
+        return;
+      }
       console.error('Error persisting event history:', error);
     }
   }
