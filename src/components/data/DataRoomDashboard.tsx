@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Player } from '@/types/game';
 import { PokemonStats } from '@/types/pokemon-stats';
 import AchievementSystem from '@/components/achievement/AchievementSystem';
+import { useGameData } from '@/hooks/useGameData';
+import { IntegratedGameFlow } from '@/lib/integrated-game-flow';
 
 interface DataRoomDashboardProps {
   players: Player[];
@@ -16,6 +18,7 @@ interface DataRoomDashboardProps {
     totalTournaments: number;
     founded: string;
   };
+  gameFlow?: IntegratedGameFlow; // gameFlowプロパティを追加
 }
 
 interface StatCard {
@@ -37,8 +40,15 @@ interface PlayerRanking {
   category: string;
 }
 
-export default function DataRoomDashboard({ players, schoolStats }: DataRoomDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'players' | 'rankings' | 'analytics' | 'achievements'>('overview');
+export default function DataRoomDashboard({ 
+  players, 
+  schoolStats,
+  gameFlow 
+}: DataRoomDashboardProps) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'players' | 'rankings' | 'analytics' | 'achievements' | 'calendar'>('overview');
+  const { gameData, loading, error } = useGameData();
+  const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
+  const [showDetailedLogs, setShowDetailedLogs] = useState(false);
 
   // 統計計算
   const calculateTeamStats = () => {
@@ -158,8 +168,183 @@ export default function DataRoomDashboard({ players, schoolStats }: DataRoomDash
     { id: 'players', name: '選手詳細', icon: '👥' },
     { id: 'rankings', name: 'ランキング', icon: '🏆' },
     { id: 'analytics', name: '分析', icon: '📈' },
-    { id: 'achievements', name: '実績', icon: '🏅' }
+    { id: 'achievements', name: '実績', icon: '🏅' },
+    { id: 'calendar', name: 'カレンダー監視', icon: '📅' }
   ];
+
+  // カレンダー状態の診断とログ生成
+  const generateDiagnosticLogs = () => {
+    if (!gameData) return;
+
+    const logs: string[] = [];
+    const timestamp = new Date().toISOString();
+
+    logs.push(`=== カレンダー診断ログ (${timestamp}) ===`);
+    logs.push('');
+
+    // 基本情報
+    logs.push('【基本情報】');
+    logs.push(`現在の日付: ${gameData.currentDate?.year || 'N/A'}年${gameData.currentDate?.month || 'N/A'}月${gameData.currentDate?.day || 'N/A'}日`);
+    logs.push(`学校名: ${gameData.school?.name || 'N/A'}`);
+    logs.push(`学校オブジェクト: ${JSON.stringify(gameData.school, null, 2)}`);
+    logs.push(`プレイヤー数: ${gameData.players?.length || 0}人`);
+    logs.push(`カード数: ${gameData.cards?.length || 0}枚`);
+    logs.push('');
+
+    // カレンダー状態の詳細分析
+    logs.push('【カレンダー状態分析】');
+    if (gameData.currentDate) {
+      const currentDate = gameData.currentDate;
+      const expectedDayCount = calculateExpectedDayCount(currentDate);
+      logs.push(`期待される日数: ${expectedDayCount}日`);
+      
+      // 日付の妥当性チェック
+      if (currentDate.month < 1 || currentDate.month > 12) {
+        logs.push('⚠️ 月の値が不正: ' + currentDate.month);
+      }
+      if (currentDate.day < 1 || currentDate.day > 31) {
+        logs.push('⚠️ 日の値が不正: ' + currentDate.day);
+      }
+      if (currentDate.year < 2024 || currentDate.year > 2030) {
+        logs.push('⚠️ 年の値が不正: ' + currentDate.year);
+      }
+    } else {
+      logs.push('❌ 現在の日付が設定されていません');
+    }
+    logs.push('');
+
+    // データ整合性チェック
+    logs.push('【データ整合性チェック】');
+    if (loading) {
+      logs.push('🔄 データ読み込み中');
+    } else if (error) {
+      logs.push(`❌ エラーが発生: ${error}`);
+    } else {
+      logs.push('✅ データ読み込み完了');
+    }
+
+    if (!gameData.school) {
+      logs.push('❌ 学校情報が不足');
+    }
+    if (!gameData.players || gameData.players.length === 0) {
+      logs.push('❌ プレイヤー情報が不足');
+    }
+    if (!gameData.cards || gameData.cards.length === 0) {
+      logs.push('❌ カード情報が不足');
+    }
+    logs.push('');
+
+    // 推奨アクション
+    logs.push('【推奨アクション】');
+    if (gameData.currentDate) {
+      logs.push('1. カレンダー状態の検証を実行');
+      logs.push('2. 必要に応じてカレンダー状態の復旧を実行');
+      logs.push('3. ゲーム状態の整合性チェックを実行');
+    } else {
+      logs.push('1. ゲームの初期化を実行');
+      logs.push('2. カレンダーシステムの再構築');
+    }
+    logs.push('');
+
+    logs.push('=== 診断完了 ===');
+
+    setDiagnosticLogs(logs);
+    setShowDetailedLogs(true);
+
+    // コンソールにも出力
+    console.group('📊 カレンダー診断ログ');
+    logs.forEach(log => console.log(log));
+    console.groupEnd();
+
+    // クリップボードにコピー
+    const logText = logs.join('\n');
+    navigator.clipboard.writeText(logText).then(() => {
+      console.log('📋 診断ログをクリップボードにコピーしました');
+    }).catch(() => {
+      console.log('⚠️ クリップボードへのコピーに失敗しました');
+    });
+  };
+
+  // 統合ゲームフローの診断ログを生成
+  const generateIntegratedDiagnosticLogs = async () => {
+    try {
+      if (gameFlow && typeof gameFlow.generateDiagnosticLog === 'function') {
+        const logs = gameFlow.generateDiagnosticLog();
+        setDiagnosticLogs(logs);
+        setShowDetailedLogs(true);
+
+        // コンソールにも出力
+        console.group('🎮 統合ゲームフロー診断ログ');
+        logs.forEach((log: string) => console.log(log));
+        console.groupEnd();
+
+        // クリップボードにコピー
+        const logText = logs.join('\n');
+        navigator.clipboard.writeText(logText).then(() => {
+          console.log('📋 統合診断ログをクリップボードにコピーしました');
+        }).catch(() => {
+          console.log('⚠️ クリップボードへのコピーに失敗しました');
+        });
+      } else {
+        console.warn('統合ゲームフローが利用できません');
+        setDiagnosticLogs([
+          '統合ゲームフローが利用できません。',
+          'gameFlowプロパティが渡されていないか、ゲームが初期化されていません。',
+          '',
+          '【確認事項】',
+          '1. ゲームが正しく初期化されているか',
+          '2. IntegratedGameInterfaceが正しく動作しているか',
+          '3. カレンダーシステムが初期化されているか',
+          '',
+          '【現在の状況】',
+          `- gameFlow: ${gameFlow ? '存在' : '未定義'}`,
+          `- gameData: ${gameData ? '存在' : '未定義'}`,
+          `- ローディング状態: ${loading}`,
+          `- エラー: ${error || 'なし'}`
+        ]);
+        setShowDetailedLogs(true);
+      }
+    } catch (error) {
+      console.error('統合診断ログの生成に失敗:', error);
+      setDiagnosticLogs([`診断ログの生成に失敗しました: ${error}`]);
+      setShowDetailedLogs(true);
+    }
+  };
+
+  // 期待される日数を計算する関数
+  const calculateExpectedDayCount = (currentDate: any) => {
+    if (!currentDate || !currentDate.year || !currentDate.month || !currentDate.day) return 0;
+    
+    const startDate = new Date(2024, 3, 1); // 4月1日から開始
+    const currentDateObj = new Date(currentDate.year, currentDate.month - 1, currentDate.day);
+    
+    const diffTime = currentDateObj.getTime() - startDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
+  };
+
+  // ログをクリア
+  const clearLogs = () => {
+    setDiagnosticLogs([]);
+    setShowDetailedLogs(false);
+  };
+
+  // ログをファイルとしてダウンロード
+  const downloadLogs = () => {
+    if (diagnosticLogs.length === 0) return;
+    
+    const logText = diagnosticLogs.join('\n');
+    const blob = new Blob([logText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `calendar-diagnostic-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -510,6 +695,135 @@ export default function DataRoomDashboard({ players, schoolStats }: DataRoomDash
                 // TODO: 実績解除の処理を実装
               }}
             />
+          </div>
+        )}
+
+        {activeTab === 'calendar' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">カレンダー状態監視</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 現在のカレンダー状態 */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-gray-700">現在の状態</h4>
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">現在の日付:</span>
+                      <span className="font-mono text-sm">
+                        {gameData?.currentDate?.year || 'N/A'}/
+                        {gameData?.currentDate?.month || 'N/A'}/
+                        {gameData?.currentDate?.day || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">学校情報:</span>
+                      <span className="font-mono text-sm">
+                        {gameData?.school?.name || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">プレイヤー数:</span>
+                      <span className="font-mono text-sm">
+                        {gameData?.players?.length || 0}人
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">利用可能カード:</span>
+                      <span className="font-mono text-sm">
+                        {gameData?.cards?.length || 0}枚
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* システム状態 */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-gray-700">システム状態</h4>
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">データ読み込み:</span>
+                      <span className={`text-sm font-medium ${!loading ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {!loading ? '完了' : '読み込み中'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">エラー状態:</span>
+                      <span className={`text-sm font-medium ${!error ? 'text-green-600' : 'text-red-600'}`}>
+                        {!error ? 'なし' : 'あり'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* デバッグ情報 */}
+              <div className="mt-6">
+                <h4 className="font-medium text-gray-700 mb-3">デバッグ情報</h4>
+                <div className="bg-gray-900 text-green-400 rounded-lg p-4 font-mono text-sm overflow-auto max-h-40">
+                  <div>現在の日付: {JSON.stringify(gameData?.currentDate, null, 2)}</div>
+                  <div>学校情報: {JSON.stringify(gameData?.school, null, 2)}</div>
+                  <div>プレイヤー数: {gameData?.players?.length || 0}</div>
+                  <div>カード数: {gameData?.cards?.length || 0}</div>
+                  <div>読み込み状態: {loading ? '読み込み中' : '完了'}</div>
+                  <div>エラー: {error || 'なし'}</div>
+                </div>
+              </div>
+
+              {/* 診断・ログ機能 */}
+              <div className="mt-6">
+                <h4 className="font-medium text-gray-700 mb-3">診断・ログ機能</h4>
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={generateDiagnosticLogs}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      📊 診断ログ生成
+                    </button>
+                    <button
+                      onClick={generateIntegratedDiagnosticLogs}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                    >
+                      🎮 統合診断ログ
+                    </button>
+                    <button
+                      onClick={clearLogs}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      🗑️ ログクリア
+                    </button>
+                    {diagnosticLogs.length > 0 && (
+                      <button
+                        onClick={downloadLogs}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        💾 ログダウンロード
+                      </button>
+                    )}
+                  </div>
+
+                  {showDetailedLogs && diagnosticLogs.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <h5 className="font-medium text-gray-700">診断結果</h5>
+                        <span className="text-sm text-gray-500">
+                          {diagnosticLogs.length}行のログ
+                        </span>
+                      </div>
+                      <div className="bg-white border rounded-lg p-3 max-h-60 overflow-auto">
+                        <pre className="text-sm text-gray-800 whitespace-pre-wrap">
+                          {diagnosticLogs.join('\n')}
+                        </pre>
+                      </div>
+                      <div className="mt-3 text-sm text-gray-600">
+                        💡 ログは自動的にクリップボードにコピーされ、コンソールにも出力されます
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

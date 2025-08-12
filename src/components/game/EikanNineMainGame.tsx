@@ -168,7 +168,7 @@ export default function EikanNineMainGame({
   const addEventLog = (log: Omit<typeof eventLogs[0], 'id' | 'timestamp'>) => {
     const newLog = {
       ...log,
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date()
     };
     setEventLogs(prev => [newLog, ...prev.slice(0, 19)]); // 最新20件を保持

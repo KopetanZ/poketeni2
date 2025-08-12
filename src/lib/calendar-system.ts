@@ -309,12 +309,28 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
 
 export class CalendarSystem {
   private currentState: CalendarState;
+  private eventListeners: Map<string, Function[]> = new Map();
   private isCalendarGenerated: boolean = false; // カレンダー生成済みフラグ
 
-  constructor(startYear: number = 1) {
+  constructor(
+    initialDate: CalendarDay = {
+      year: 2024,
+      month: 4,
+      day: 1,
+      week: 1,
+      dayOfWeek: 1,
+      square: 'blue'
+    }
+  ) {
+    // 年が2024未満の場合は2024に修正
+    if (initialDate.year < 2024) {
+      console.log('calendar-system: 年を修正中:', initialDate.year, '→ 2024');
+      initialDate.year = 2024;
+    }
+    
     this.currentState = {
-      currentDate: this.generateDay(startYear, 4, 1, 1),
-      currentYear: startYear,
+      currentDate: initialDate,
+      currentYear: initialDate.year,
       currentSemester: 1,
       daysUntilGraduation: 365 * 3, // 3年間
       yearCalendar: [],
@@ -324,9 +340,117 @@ export class CalendarSystem {
         eventsTriggered: []
       }
     };
-
-    // 初期カレンダーを生成
+    
     this.generateYearCalendar();
+    console.log('calendar-system: カレンダーシステム初期化完了:', this.currentState.currentDate);
+  }
+
+  // 詳細な診断ログを生成するメソッド
+  public generateDiagnosticLog(): string[] {
+    const logs: string[] = [];
+    const timestamp = new Date().toISOString();
+
+    logs.push(`=== カレンダーシステム診断ログ (${timestamp}) ===`);
+    logs.push('');
+
+    // 現在の状態
+    logs.push('【現在の状態】');
+    logs.push(`現在の日付: ${this.currentState.currentDate.year}年${this.currentState.currentDate.month}月${this.currentState.currentDate.day}日`);
+    logs.push(`カレンダー年: ${this.currentState.currentYear}`);
+    logs.push(`カレンダー生成済み: ${this.isCalendarGenerated}`);
+    logs.push(`年カレンダーサイズ: ${this.currentState.yearCalendar.length}`);
+    logs.push('');
+
+    // 年カレンダーの詳細
+    logs.push('【年カレンダー詳細】');
+    if (this.currentState.yearCalendar.length > 0) {
+      const calendarEntries = Array.from(this.currentState.yearCalendar.entries());
+      logs.push(`登録されている日付数: ${calendarEntries.length}`);
+      
+      // 最初と最後の日付を表示
+      if (calendarEntries.length > 0) {
+        const firstDate = calendarEntries[0][0];
+        const lastDate = calendarEntries[calendarEntries.length - 1][0];
+        logs.push(`最初の日付: ${firstDate}`);
+        logs.push(`最後の日付: ${lastDate}`);
+      }
+
+      // 現在の日付が年カレンダーに存在するかチェック
+      const currentDateKey = `${this.currentState.currentDate.year}-${this.currentState.currentDate.month}-${this.currentState.currentDate.day}`;
+      const currentDateExists = this.currentState.yearCalendar.find(day => 
+        day.year === this.currentState.currentDate.year &&
+        day.month === this.currentState.currentDate.month &&
+        day.day === this.currentState.currentDate.day
+      );
+      logs.push(`現在の日付が年カレンダーに存在: ${currentDateExists ? '✅' : '❌'}`);
+      
+      if (!currentDateExists) {
+        logs.push(`❌ 問題: 現在の日付(${currentDateKey})が年カレンダーに見つかりません`);
+      }
+    } else {
+      logs.push('❌ 年カレンダーが空です');
+    }
+    logs.push('');
+
+    // 期待される日数との比較
+    logs.push('【期待される日数との比較】');
+    const expectedDayCount = this.calculateExpectedDayCount();
+    const actualDayCount = this.calculateActualDayCount();
+    logs.push(`期待される日数: ${expectedDayCount}日`);
+    logs.push(`実際の日数: ${actualDayCount}日`);
+    
+    if (expectedDayCount !== actualDayCount) {
+      logs.push(`⚠️ 不一致: ${Math.abs(expectedDayCount - actualDayCount)}日の差があります`);
+    } else {
+      logs.push('✅ 日数は一致しています');
+    }
+    logs.push('');
+
+    // 状態の妥当性チェック
+    logs.push('【状態妥当性チェック】');
+    const validationResult = this.validateCalendarState();
+    logs.push(`状態検証結果: ${validationResult ? '✅ 正常' : '❌ 異常'}`);
+    
+    if (!validationResult) {
+      logs.push('❌ カレンダー状態に問題があります');
+      logs.push('推奨アクション: recoverCalendarState()を実行してください');
+    }
+    logs.push('');
+
+    // 推奨アクション
+    logs.push('【推奨アクション】');
+    if (!validationResult) {
+      logs.push('1. recoverCalendarState()を実行');
+      logs.push('2. 必要に応じてresetCalendar()を実行');
+      logs.push('3. ゲーム状態の再初期化を検討');
+    } else {
+      logs.push('1. 現在の状態を維持');
+      logs.push('2. 定期的な状態検証を実行');
+    }
+    logs.push('');
+
+    logs.push('=== 診断完了 ===');
+    return logs;
+  }
+
+  // 期待される日数を計算
+  private calculateExpectedDayCount(): number {
+    const startDate = new Date(2024, 3, 1); // 4月1日から開始
+    const currentDateObj = new Date(
+      this.currentState.currentDate.year,
+      this.currentState.currentDate.month - 1,
+      this.currentState.currentDate.day
+    );
+    
+    const diffTime = currentDateObj.getTime() - startDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
+  }
+
+  // 実際の日数を計算
+  private calculateActualDayCount(): number {
+    return this.currentState.yearCalendar.length;
   }
 
   // 年間カレンダー生成（一度だけ実行）
@@ -363,9 +487,45 @@ export class CalendarSystem {
     console.log('=== generateYearCalendar 終了 ===');
   }
 
+  // 年間カレンダー生成（年が変わった場合に呼び出す）
+  private generateYearCalendarForYear(year: number): void {
+    console.log(`📅 ${year}年のカレンダーを生成中...`);
+    const startDate = new Date(year, 3, 1); // 4月1日から開始
+    const endDate = new Date(year + 1, 2, 31); // 翌年3月31日まで
+    
+    let currentDate = new Date(startDate);
+    let dayCount = 0;
+    
+    while (currentDate <= endDate) {
+      const month = currentDate.getMonth() + 1 as MonthType;
+      const day = currentDate.getDate();
+      const week = this.getDayOfWeek(currentDate) as WeekType;
+      
+             const calendarDay: CalendarDay = {
+         year: year,
+         month: month,
+         day: day,
+         week: week,
+         dayOfWeek: (currentDate.getDay() + 6) % 7, // 0を月曜日に変換
+         square: this.getRandomSquareType() // ランダムなマス目タイプを設定
+       };
+      
+      const key = `${year}-${month}-${day}`;
+      this.currentState.yearCalendar.push(calendarDay);
+      dayCount++;
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    this.currentState.currentYear = year;
+    this.isCalendarGenerated = true; // 生成済みフラグを設定
+    console.log(`📅 ${year}年のカレンダー生成完了: ${dayCount}日分`);
+  }
+
   // 個別日付生成（マス色決定ロジック含む）
   private generateDay(year: number, month: MonthType, week: WeekType, day: number): CalendarDay {
-    const date = new Date(2024, month - 1, day);
+    // ハードコードされた年（2024）を修正し、正しい年を使用
+    const date = new Date(year, month - 1, day);
     const dayOfWeek = date.getDay();
     
     // マス色決定（戦略的確率分布）
@@ -556,62 +716,49 @@ export class CalendarSystem {
 
   // カレンダー進行
   public advanceDay(): CalendarDay {
-    console.log('=== advanceDay 開始 ===');
-    console.log('現在の日付:', this.currentState.currentDate);
-    
-    // 現在の日付から次の日を計算
     const currentDate = this.currentState.currentDate;
-    let nextYear = currentDate.year;
+    console.log(`📅 日付を進める: ${currentDate.year}年${currentDate.month}月${currentDate.day}日 → `);
+    
     let nextMonth = currentDate.month;
+    let nextYear = currentDate.year;
     let nextDay = currentDate.day + 1;
-    let nextWeek = currentDate.week;
     
-    // 月の日数を取得
-    const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    const currentMonthDays = monthDays[currentDate.month - 1];
-    
-    // 日付の調整
-    if (nextDay > currentMonthDays) {
+    // 月の最終日をチェック
+    const daysInMonth = this.getDaysInMonth(currentDate.month, currentDate.year);
+    if (nextDay > daysInMonth) {
       nextDay = 1;
       nextMonth = (currentDate.month % 12) + 1;
       
       if (nextMonth === 1) {
-        nextYear++;
+        nextYear = currentDate.year + 1;
+        console.log(`📅 年が変わりました: ${nextYear}年`);
       }
     }
     
-    // 週の調整（7日ごとに週を更新）
-    const daysInCurrentWeek = (currentDate.day - 1) % 7;
-    if (daysInCurrentWeek === 6) { // 週の最後の日
-      nextWeek = (currentDate.week % 4) + 1;
+         const nextDate: CalendarDay = {
+       year: nextYear,
+       month: nextMonth as MonthType,
+       day: nextDay,
+       week: this.getDayOfWeek(new Date(nextYear, nextMonth - 1, nextDay)) as WeekType,
+       dayOfWeek: (new Date(nextYear, nextMonth - 1, nextDay).getDay() + 6) % 7,
+       square: this.getRandomSquareType()
+     };
+    
+    // 新しい年の場合は年カレンダーを再生成
+    if (nextYear !== this.currentState.currentYear) {
+      console.log(`📅 新しい年(${nextYear})のカレンダーを生成します`);
+      this.generateYearCalendarForYear(nextYear);
     }
     
-    console.log('計算された次の日付:', { year: nextYear, month: nextMonth, week: nextWeek, day: nextDay });
-    
-    // 新しい日付を生成
-    const nextDate = this.generateDay(
-      nextYear,
-      nextMonth as MonthType,
-      nextWeek as WeekType,
-      nextDay
-    );
-    
-    // 状態を更新
     this.currentState.currentDate = nextDate;
-    this.currentState.currentYear = nextYear;
+    console.log(`📅 日付が進みました: ${nextDate.year}年${nextDate.month}月${nextDate.day}日`);
     
-    // 学期判定更新
-    this.currentState.currentSemester = nextDate.month <= 9 ? 1 : 2;
-    
-    // 卒業までの日数を更新
-    if (nextYear > this.currentState.currentYear) {
-      this.currentState.daysUntilGraduation -= 365;
+    // 状態の検証
+    if (!this.validateCalendarState()) {
+      console.warn('⚠️ 日付進行後の状態検証に失敗しました');
     }
     
-    console.log('進行後の日付:', this.currentState.currentDate);
-    console.log('=== advanceDay 終了 ===');
-
-    return this.currentState.currentDate;
+    return nextDate;
   }
 
   // 現在の状態取得
@@ -621,6 +768,12 @@ export class CalendarSystem {
 
   // 現在の日付を設定（外部からの状態復元用）
   public setCurrentDate(year: number, month: MonthType, day: number): void {
+    // 年が変わった場合、新しい年のカレンダーを生成
+    if (year !== this.currentState.currentYear) {
+      console.log('setCurrentDate: 年が変わりました。新しい年のカレンダーを生成します:', year);
+      this.generateYearCalendarForYear(year);
+    }
+    
     // 既存のカレンダーから該当する日付を取得
     const existingDay = this.getExistingDay(year, month, day);
     
@@ -633,7 +786,7 @@ export class CalendarSystem {
       console.log('CalendarSystem: 既存カレンダーから日付を設定しました:', existingDay);
     } else {
       // フォールバック: 新しい日付を生成
-      const date = new Date(2024, month - 1, day);
+      const date = new Date(year, month - 1, day);
       const dayOfWeek = date.getDay();
       const week = Math.ceil(day / 7) as WeekType;
       
@@ -648,17 +801,29 @@ export class CalendarSystem {
   }
 
   // 既存のカレンダーから特定の日付を取得
-  private getExistingDay(year: number, month: MonthType, day: number): CalendarDay | null {
-    if (!this.isCalendarGenerated || this.currentState.yearCalendar.length === 0) {
+  public getExistingDay(year: number, month: MonthType, day: number): CalendarDay | null {
+    const key = `${year}-${month}-${day}`;
+    const currentCalendarYear = this.currentState.currentYear;
+    
+    console.log(`🔍 日付を検索: ${key} (現在のカレンダー年: ${currentCalendarYear})`);
+    
+    // 年が一致しない場合は早期リターン
+    if (currentCalendarYear !== year) {
+      console.warn(`⚠️ 年が一致しません: 要求された年(${year}) vs 現在のカレンダー年(${currentCalendarYear})`);
       return null;
     }
     
-    // 既存のカレンダーから該当する日付を検索
     const existingDay = this.currentState.yearCalendar.find(
       calendarDay => calendarDay.year === year && 
                      calendarDay.month === month && 
                      calendarDay.day === day
     );
+    
+    if (!existingDay) {
+      console.warn(`❌ 日付が見つかりません: ${key}`);
+      console.warn(`現在の年カレンダーサイズ: ${this.currentState.yearCalendar.length}`);
+      console.warn(`年カレンダーの年: ${this.currentState.currentYear}`);
+    }
     
     return existingDay || null;
   }
@@ -673,6 +838,63 @@ export class CalendarSystem {
   // カレンダーの生成状態を確認
   public isCalendarReady(): boolean {
     return this.isCalendarGenerated && this.currentState.yearCalendar.length > 0;
+  }
+
+  // カレンダー状態の検証
+  public validateCalendarState(): boolean {
+    console.log('🔍 カレンダー状態の検証を開始...');
+    
+    if (!this.isCalendarGenerated) {
+      console.error('❌ カレンダーが生成されていません');
+      return false;
+    }
+    
+    const currentDate = this.currentState.currentDate;
+    const key = `${currentDate.year}-${currentDate.month}-${currentDate.day}`;
+    const existingDay = this.currentState.yearCalendar.find(
+      calendarDay => calendarDay.year === currentDate.year && 
+                     calendarDay.month === currentDate.month && 
+                     calendarDay.day === currentDate.day
+    );
+    
+    if (!existingDay) {
+      console.error('❌ 現在の日付が年カレンダーに見つかりません');
+      console.error(`現在の日付: ${currentDate.year}年${currentDate.month}月${currentDate.day}日`);
+      console.error(`期待されるキー: ${key}`);
+      console.error(`年カレンダーサイズ: ${this.currentState.yearCalendar.length}`);
+      console.error(`年カレンダーの年: ${this.currentState.currentYear}`);
+      return false;
+    }
+    
+    console.log('✅ カレンダー状態の検証に成功しました');
+    return true;
+  }
+
+  // 状態復旧関数
+  public recoverCalendarState(): boolean {
+    console.log('🔄 カレンダー状態の復旧を開始...');
+    
+    const currentDate = this.currentState.currentDate;
+    const currentCalendarYear = this.currentState.currentYear;
+    
+    console.log(`現在の日付: ${currentDate.year}年${currentDate.month}月${currentDate.day}日`);
+    console.log(`現在のカレンダー年: ${currentCalendarYear}`);
+    
+    // 年が一致しない場合は年カレンダーを再生成
+    if (currentDate.year !== currentCalendarYear) {
+      console.log(`年が一致しないため、${currentDate.year}年のカレンダーを再生成します`);
+      this.generateYearCalendarForYear(currentDate.year);
+    }
+    
+    // 復旧後の検証
+    const isValid = this.validateCalendarState();
+    if (isValid) {
+      console.log('✅ カレンダー状態の復旧に成功しました');
+    } else {
+      console.error('❌ カレンダー状態の復旧に失敗しました');
+    }
+    
+    return isValid;
   }
 
   // 先読み: 現在日付から count 日分の CalendarDay を返す（状態は進めない）
@@ -723,4 +945,22 @@ export class CalendarSystem {
       this.currentState.weeklyEffects.eventsTriggered.push(eventId);
     }
   }
-}
+
+  // 月の日数を取得
+  private getDaysInMonth(month: MonthType, year: number): number {
+    return new Date(year, month, 0).getDate();
+  }
+
+  // 曜日を取得
+  private getDayOfWeek(date: Date): WeekType {
+    const dayOfWeek = date.getDay();
+    return (dayOfWeek + 6) % 7 + 1 as WeekType; // 0を月曜日に変換
+  }
+
+  // ランダムなマス目タイプを取得
+  private getRandomSquareType(): SquareType {
+    const squareTypes: SquareType[] = ['blue', 'red', 'white', 'green', 'yellow'];
+    const randomIndex = Math.floor(Math.random() * squareTypes.length);
+    return squareTypes[randomIndex];
+  }
+ }

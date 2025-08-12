@@ -25,15 +25,32 @@ import { EventHistoryDisplay } from '../events/EventHistoryDisplay';
 interface IntegratedGameInterfaceProps {
   initialPlayer: Player;
   initialSchoolStats: {
+    name: string;
     funds: number;
     reputation: number;
     facilities: number;
+    current_year: number;
+    current_month: number;
+    current_day: number;
+    totalMatches: number;
+    totalWins: number;
+    totalTournaments: number;
+    founded: string;
   };
   allPlayers?: Player[];
   schoolId?: string;
   onGameStateUpdate?: (newState: {
     currentDate: GameDate;
-    schoolStats: { funds: number; reputation: number; facilities: number };
+    schoolStats: { 
+      name: string;
+      funds: number; 
+      reputation: number; 
+      facilities: number;
+      totalMatches: number;
+      totalWins: number;
+      totalTournaments: number;
+      founded: string;
+    };
   }) => void;
 }
 
@@ -45,12 +62,21 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   onGameStateUpdate
 }) => {
   // ゲームフロー管理
-  const [gameFlow] = useState(() => new IntegratedGameFlow(
-    initialPlayer, 
-    initialSchoolStats, 
-    schoolId || 'default', 
-    allPlayers
-  ));
+  const [gameFlow] = useState(() => {
+    const flow = new IntegratedGameFlow(
+      initialPlayer, 
+      initialSchoolStats, 
+      schoolId || 'default', 
+      allPlayers || []
+    );
+    
+    // グローバルにgameFlowを利用可能にする（DataRoomDashboard用）
+    if (typeof window !== 'undefined') {
+      (window as any).__GAME_FLOW__ = flow;
+    }
+    
+    return flow;
+  });
   const [gameState, setGameState] = useState<GameState>(gameFlow.getGameState());
   
   // UI状態管理
@@ -87,6 +113,9 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
   // 前回永続化した日付を追跡（無限ループ防止用）
   const lastPersistedDateRef = useRef<{ year: number; month: number; day: number } | null>(null);
+  
+  // 初期化状態管理（重複初期化防止用）
+  const [calendarInitialized, setCalendarInitialized] = useState(false);
 
   // Supabase接続状態を確認するヘルパー関数
   const checkSupabaseConnection = async (): Promise<boolean> => {
@@ -109,69 +138,76 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   };
 
   // ゲーム状態の同期
-  const syncGameState = () => {
+  const syncGameState = async () => {
     const newGameState = gameFlow.getGameState();
+    const currentDay = gameFlow.getCurrentDay();
+    
+    // React状態を先に更新
     setGameState(newGameState);
+    
+    // カレンダー状態の整合性チェック
+    if (!currentDay || !currentDay.year || !currentDay.month || !currentDay.day) {
+      console.error('Invalid calendar state:', currentDay);
+      return;
+    }
     
     // カレンダー状態も同期
     if (newGameState.calendarSystem) {
       const calendarState = newGameState.calendarSystem.getCurrentState();
       console.log('カレンダー状態同期:', calendarState.currentDate);
       
-      // カレンダー状態をデータベースに永続化（エラーが発生してもゲーム進行を妨げない）
-      // 無限ループを防ぐため、前回と異なる日付の場合のみ永続化
-      if (schoolId && calendarState.currentDate) {
-        // 前回の永続化状態を追跡
-        const currentDate = {
-          year: calendarState.currentDate.year,
-          month: calendarState.currentDate.month,
-          day: calendarState.currentDate.day
-        };
-        
-        // 前回と異なる日付の場合のみ永続化
-        if (!lastPersistedDateRef.current || 
-            lastPersistedDateRef.current.year !== currentDate.year ||
-            lastPersistedDateRef.current.month !== currentDate.month ||
-            lastPersistedDateRef.current.day !== currentDate.day) {
-          
-          // 非同期処理を分離し、エラーが発生してもゲーム進行を妨げない
-          const persistCalendarState = async () => {
-            try {
-              // まず接続状態を確認
-              const isConnected = await checkSupabaseConnection();
-              if (!isConnected) {
-                console.warn('Supabase接続が利用できないため、カレンダー状態の永続化をスキップします');
-                return;
-              }
-              
-              const { error } = await supabase
-                .from('schools')
-                .update({
-                  current_year: calendarState.currentDate.year,
-                  current_month: calendarState.currentDate.month,
-                  current_day: calendarState.currentDate.day
-                })
-                .eq('id', schoolId);
-              
-              if (error) {
-                console.error('カレンダー状態の永続化でエラーが発生:', error);
-              } else {
-                console.log('カレンダー状態をデータベースに永続化しました:', calendarState.currentDate);
-                // 永続化成功時に前回の状態を更新
-                lastPersistedDateRef.current = currentDate;
-              }
-            } catch (e) {
-              console.error('カレンダー状態の永続化に失敗:', e);
-              // エラーが発生してもゲーム進行を妨げない
-            }
-          };
-          
-          // バックグラウンドで実行
-          persistCalendarState();
-        } else {
-          console.log('カレンダー状態: 前回と同じ日付のため永続化をスキップ:', currentDate);
+      // 永続化を同期的に実行
+      if (schoolId) {
+        try {
+          await persistCalendarStateSync(calendarState.currentDate);
+        } catch (error) {
+          console.error('Calendar persistence failed:', error);
         }
       }
+    }
+  };
+
+  // 新しい同期的永続化関数
+  const persistCalendarStateSync = async (currentDate: CalendarDay): Promise<void> => {
+    // 前回と異なる日付の場合のみ永続化
+    if (!lastPersistedDateRef.current || 
+        lastPersistedDateRef.current.year !== currentDate.year ||
+        lastPersistedDateRef.current.month !== currentDate.month ||
+        lastPersistedDateRef.current.day !== currentDate.day) {
+      
+      try {
+        // まず接続状態を確認
+        const isConnected = await checkSupabaseConnection();
+        if (!isConnected) {
+          console.warn('Supabase接続が利用できないため、カレンダー状態の永続化をスキップします');
+          return;
+        }
+        
+        const { error } = await supabase
+          .from('schools')
+          .update({
+            current_year: currentDate.year,
+            current_month: currentDate.month,
+            current_day: currentDate.day
+          })
+          .eq('id', schoolId);
+        
+        if (error) {
+          throw error;
+        }
+        
+        console.log('カレンダー状態をデータベースに永続化しました:', currentDate);
+        lastPersistedDateRef.current = {
+          year: currentDate.year,
+          month: currentDate.month,
+          day: currentDate.day
+        };
+      } catch (e) {
+        console.error('カレンダー状態の永続化に失敗:', e);
+        throw e;
+      }
+    } else {
+      console.log('カレンダー状態: 前回と同じ日付のため永続化をスキップ:', currentDate);
     }
   };
 
@@ -179,7 +215,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const addEventLog = (log: Omit<typeof eventLogs[0], 'id' | 'timestamp'>) => {
     const newLog = {
       ...log,
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date()
     };
     setEventLogs(prev => [newLog, ...prev.slice(0, 19)]); // 最新20件を保持
@@ -208,11 +244,20 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     const handleGameDataInitialized = (event: CustomEvent) => {
       const { currentDate, schoolId: eventSchoolId } = event.detail;
       
+      // 初期化済みの場合はスキップ
+      if (calendarInitialized) {
+        console.log('Calendar already initialized, skipping...');
+        return;
+      }
+      
       // このコンポーネントの学校IDと一致する場合のみ処理
       if (schoolId && eventSchoolId === schoolId) {
         console.log('gameDataInitializedイベントを受信:', currentDate);
         
         try {
+          // 重複実行を確実に防ぐため、最初にフラグを設定
+          setCalendarInitialized(true);
+          
           // IntegratedGameFlowのカレンダーを正しい日付で初期化
           if (typeof gameFlow.initializeCalendarWithDate === 'function') {
             gameFlow.initializeCalendarWithDate(currentDate.year, currentDate.month, currentDate.day);
@@ -220,17 +265,6 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
             
             // 状態を同期
             syncGameState();
-            
-            // ゲーム状態も更新
-            setGameState(prevState => ({
-              ...prevState,
-              currentDay: {
-                ...prevState.currentDay,
-                year: currentDate.year,
-                month: currentDate.month,
-                day: currentDate.day
-              }
-            }));
           }
         } catch (error) {
           console.error('gameDataInitialized: カレンダー状態初期化エラー:', error);
@@ -300,7 +334,14 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   };
 
   // カード使用処理（すごろく進行対応）
-  const handleCardUse = (cardId: string) => {
+  const handleCardUse = async (cardId: string) => {
+    console.log('=== カード使用開始 ===');
+    console.log('使用前の状態:', {
+      currentDate: gameFlow.getCurrentDay(),
+      dayCount: gameFlow.getGameState().dayCount,
+      availableCards: gameFlow.getGameState().availableCards.length
+    });
+    
     setIsAdvancingDay(true);
     try {
       const card = gameState.availableCards.find(c => c.id === cardId);
@@ -314,11 +355,12 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       // IntegratedGameFlow の useTrainingCard を呼び出し（すごろく進行含む）
       const result = gameFlow.useTrainingCard(card);
       
+      // カレンダー進行完了を確認してから状態同期
+      await new Promise(resolve => setTimeout(resolve, 100));
+      syncGameState();
+      
       setLastCardResult(result);
       setShowCardResult(true);
-      
-      // 即座に状態を同期（アニメーションは別途処理）
-      syncGameState();
       
       // 日付進行の確認
       const stateAfter = gameFlow.getGameState();
@@ -333,17 +375,38 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         // 日付が進んでいる場合、通知を追加
         setNotifications(prev => [...prev, `日付が${result.daysProgressed}日進みました: ${originalDate.month}/${originalDate.day} → ${newDate.month}/${newDate.day}`].slice(-5));
         
-        // 日付進行後の状態を強制的に更新
-        setGameState(prevState => ({
-          ...prevState,
-          currentDay: newDate,
-          dayCount: prevState.dayCount + result.daysProgressed,
-          availableCards: gameFlow.getAvailableCards() // 手札も更新
-        }));
-      } else {
-        // 日付が進んでいない場合、警告を追加
-        setNotifications(prev => [...prev, '警告: カード使用後も日付が進んでいません'].slice(-5));
+              // 手動状態更新を削除 - gameFlowの状態のみを信頼する
+      console.log('カード使用完了: gameFlowの状態を信頼し、手動更新は行いません');
+      
+      // 状態整合性チェック
+      if (!gameFlow.validateGameState()) {
+        console.error('状態整合性チェックに失敗しました');
+        setNotifications(prev => [...prev, '警告: ゲーム状態に不整合が検出されました'].slice(-5));
+        
+        // カレンダー状態の復旧を試行
+        console.log('カレンダー状態の復旧を試行します');
+        const calendarSystem = gameFlow.getGameState().calendarSystem;
+        if (calendarSystem.recoverCalendarState()) {
+          console.log('カレンダー状態の復旧に成功しました');
+          setNotifications(prev => [...prev, 'カレンダー状態を復旧しました'].slice(-5));
+          
+          // 復旧後の再度検証
+          if (gameFlow.validateGameState()) {
+            console.log('復旧後の状態整合性チェックに成功しました');
+            setNotifications(prev => [...prev, 'ゲーム状態の整合性が回復しました'].slice(-5));
+          } else {
+            console.error('復旧後も状態整合性チェックに失敗しました');
+            setNotifications(prev => [...prev, '警告: 状態復旧後も不整合が残っています'].slice(-5));
+          }
+        } else {
+          console.error('カレンダー状態の復旧に失敗しました');
+          setNotifications(prev => [...prev, 'エラー: カレンダー状態の復旧に失敗しました'].slice(-5));
+        }
       }
+    } else {
+      // 日付が進んでいない場合、警告を追加
+      setNotifications(prev => [...prev, '警告: カード使用後も日付が進んでいません'].slice(-5));
+    }
       
       // プレイヤー能力・経験値の永続化（全部員対象）
       (async () => {
@@ -413,6 +476,13 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
       setNotifications(prev => [...prev, ...progressNotifications].slice(-5));
 
+      console.log('=== カード使用完了 ===');
+      console.log('使用後の状態:', {
+        currentDate: gameFlow.getCurrentDay(),
+        dayCount: gameFlow.getGameState().dayCount,
+        availableCards: gameFlow.getGameState().availableCards.length
+      });
+
       // 学校日付・学校ステータスの永続化（エラーが発生してもゲーム進行を妨げない）
       if (schoolId) {
         const persistSchoolData = async () => {
@@ -456,7 +526,16 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       if (onGameStateUpdate) {
         onGameStateUpdate({
           currentDate: newDate,
-          schoolStats: stateAfter.schoolStats
+          schoolStats: {
+            name: stateAfter.schoolStats.name,
+            funds: stateAfter.schoolStats.funds,
+            reputation: stateAfter.schoolStats.reputation,
+            facilities: stateAfter.schoolStats.facilities,
+            totalMatches: stateAfter.schoolStats.totalMatches,
+            totalWins: stateAfter.schoolStats.totalWins,
+            totalTournaments: stateAfter.schoolStats.totalTournaments,
+            founded: stateAfter.schoolStats.founded
+          }
         });
       }
       
@@ -539,7 +618,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 PokeTeniMaster みどり学園
               </h1>
               <p className="text-gray-600">
-                {gameState.player.pokemon_name} | Day {gameState.currentDay?.day || gameState.dayCount} | Week {gameState.currentDay?.week || gameState.weekCount}
+                {gameState.player.pokemon_name} | Day {gameFlow.getCurrentDay()?.day || gameState.dayCount} | Week {gameFlow.getCurrentDay()?.week || gameState.weekCount}
               </p>
             </div>
             

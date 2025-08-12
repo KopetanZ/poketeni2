@@ -6,21 +6,26 @@ import { TrainingCardSystem } from './training-card-system';
 import { StrategicChoiceSystem, STRATEGIC_CHOICES } from './strategic-choice-system';
 import { StrategicChoice, ChoiceOutcome, ChoiceRouteType } from '../types/strategic-choice';
 import { Player } from '../types/game';
-import { SquareEffect, SeasonalEvent, HiddenEvent, CalendarDay } from '../types/calendar';
+import { SquareEffect, SeasonalEvent, HiddenEvent, CalendarDay, MonthType } from '../types/calendar';
 import { TrainingCard, CardUsageResult } from '../types/training-cards';
 
 export interface GameState {
   // カレンダー状態
   calendarSystem: CalendarSystem;
-  currentDay: CalendarDay;
+  // currentDayを削除（CalendarSystemから直接取得）
   
   // プレイヤー・学校情報
   player: Player; // メインプレイヤー（キャプテン）
   allPlayers?: Player[]; // 全部員（オプション）
   schoolStats: {
+    name: string;
     funds: number;
     reputation: number;
     facilities: number;
+    totalMatches: number;
+    totalWins: number;
+    totalTournaments: number;
+    founded: string;
   };
   
   // カードシステム状態
@@ -66,18 +71,53 @@ export class IntegratedGameFlow {
   private gameState: GameState;
   private schoolId: string;
   
-  constructor(initialPlayer: Player, initialSchoolStats: any, schoolId: string, allPlayers?: Player[]) {
+  constructor(
+    initialPlayer: Player,
+    initialSchoolStats: {
+      name: string;
+      funds: number;
+      reputation: number;
+      facilities: number;
+      current_year: number;
+      current_month: number;
+      current_day: number;
+      totalMatches: number;
+      totalWins: number;
+      totalTournaments: number;
+      founded: string;
+    },
+    schoolId: string,
+    allPlayers: Player[]
+  ) {
+    // 年が2024未満の場合は2024に修正
+    if (initialSchoolStats.current_year < 2024) {
+      console.log('integrated-game-flow: 年を修正中:', initialSchoolStats.current_year, '→ 2024');
+      initialSchoolStats.current_year = 2024;
+    }
+
     this.schoolId = schoolId; // schoolIdを初期化
     
     this.gameState = {
-      calendarSystem: new CalendarSystem(),
-      currentDay: new CalendarSystem().getCurrentState().currentDate,
+      calendarSystem: new CalendarSystem({
+        year: initialSchoolStats.current_year,
+        month: initialSchoolStats.current_month as MonthType,
+        day: initialSchoolStats.current_day,
+        week: 1,
+        dayOfWeek: 1,
+        square: 'blue'
+      }),
+      // currentDayを削除
       player: initialPlayer,
       allPlayers: allPlayers,
       schoolStats: {
+        name: initialSchoolStats.name,
         funds: initialSchoolStats.funds || 50000,
         reputation: initialSchoolStats.reputation || 50,
-        facilities: initialSchoolStats.facilities || 50
+        facilities: initialSchoolStats.facilities || 50,
+        totalMatches: initialSchoolStats.totalMatches,
+        totalWins: initialSchoolStats.totalWins,
+        totalTournaments: initialSchoolStats.totalTournaments,
+        founded: initialSchoolStats.founded
       },
       availableCards: [],
       dailyCardGenerated: false,
@@ -96,6 +136,8 @@ export class IntegratedGameFlow {
       eventHistory: []
     };
 
+    console.log(`IntegratedGameFlow: 初期化完了 - 学校: ${initialSchoolStats.name}, 日付: ${initialSchoolStats.current_year}年${initialSchoolStats.current_month}月${initialSchoolStats.current_day}日`);
+
     this.initializeDailyFlow();
   }
 
@@ -110,10 +152,9 @@ export class IntegratedGameFlow {
       console.log('IntegratedGameFlow: カレンダー準備状態:', isReady);
       
       this.gameState.calendarSystem.setCurrentDate(year, monthType, day);
-      this.gameState.currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
       
       console.log('IntegratedGameFlow: カレンダーを日付で初期化しました:', { year, month, day });
-      console.log('IntegratedGameFlow: 現在のカレンダー状態:', this.gameState.currentDay);
+      console.log('IntegratedGameFlow: 現在のカレンダー状態:', this.gameState.calendarSystem.getCurrentState().currentDate);
     }
   }
 
@@ -171,7 +212,6 @@ export class IntegratedGameFlow {
   }> {
     // カレンダー進行
     const newDay = this.gameState.calendarSystem.advanceDay();
-    this.gameState.currentDay = newDay;
     this.gameState.dayCount++;
     
     if (this.gameState.dayCount % 7 === 0) {
@@ -257,8 +297,9 @@ export class IntegratedGameFlow {
     if (this.gameState.schoolStats.facilities > 70) baseCount += 1;
     
     // 特別な日による修正
-    if (this.gameState.currentDay.seasonalEvent) baseCount += 1;
-    if (this.gameState.currentDay.hiddenEvent) baseCount += 2;
+    const currentDay = this.getCurrentDay();
+    if (currentDay.seasonalEvent) baseCount += 1;
+    if (currentDay.hiddenEvent) baseCount += 2;
 
     return Math.min(baseCount, 10); // 最大10枚
   }
@@ -270,15 +311,16 @@ export class IntegratedGameFlow {
     triggeredEvents: string[];
   } {
     // 環境修正要因の計算
+    const currentDay = this.getCurrentDay();
     const environmentModifiers = {
-      weather: this.gameState.currentDay.weather || 'sunny',
-      courtCondition: this.gameState.currentDay.courtCondition || 'normal',
+      weather: currentDay.weather || 'sunny',
+      courtCondition: currentDay.courtCondition || 'normal',
       teamMorale: this.calculateTeamMorale()
     };
 
     // カレンダーマス効果の適用
     const squareEffect = this.gameState.calendarSystem.getSquareEffect(
-      this.gameState.currentDay.square
+      currentDay.square
     );
     
     // カード使用実行
@@ -313,17 +355,27 @@ export class IntegratedGameFlow {
     const triggeredEvents: string[] = [];
     
     console.log('=== カード使用による日付進行開始 ===');
-    console.log('進行前の日付:', this.gameState.currentDay);
+    console.log('進行前の日付:', currentDay);
     console.log('進行する日数:', daysToProgress);
     
+    // カレンダー進行を完全に分離（状態変更のみ）
     for (let i = 0; i < daysToProgress; i++) {
-      console.log(`--- ${i + 1}日目の進行 ---`);
       const dayResult = this.gameState.calendarSystem.advanceDay();
       newDays.push(dayResult);
       
-      console.log(`${i + 1}日目進行後の日付:`, dayResult);
+      // 日付カウントの更新のみ（効果適用は後で）
+      this.gameState.dayCount++;
+      if (this.gameState.dayCount % 7 === 0) {
+        this.gameState.weekCount++;
+      }
+    }
+    
+    // 進行完了後にまとめて効果を適用
+    console.log('=== マス目効果・イベント効果の適用開始 ===');
+    newDays.forEach((dayResult, index) => {
+      console.log(`日${index + 1}の効果適用:`, dayResult.square);
       
-      // === マス目効果の独立した処理 ===
+      // マス目効果の適用
       const landedSquareEffect = this.gameState.calendarSystem.getSquareEffect(dayResult.square);
       this.applySquareEffects(landedSquareEffect, dayResult);
       
@@ -336,17 +388,12 @@ export class IntegratedGameFlow {
         triggeredEvents.push(`hidden_event:${dayResult.hiddenEvent.id}`);
         this.applyHiddenEvent(dayResult.hiddenEvent);
       }
-      
-      this.gameState.dayCount++;
-      if (this.gameState.dayCount % 7 === 0) {
-        this.gameState.weekCount++;
-      }
-    }
+    });
+    console.log('=== マス目効果・イベント効果の適用完了 ===');
     
-    // 現在の日付を更新
-    this.gameState.currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
-    
-    console.log('進行後の最終日付:', this.gameState.currentDay);
+    // 進行完了後の状態整合性チェック
+    const finalDay = this.gameState.calendarSystem.getCurrentState().currentDate;
+    console.log('進行完了後の最終日付:', finalDay);
     console.log('=== カード使用による日付進行終了 ===');
     
     // 統計更新
@@ -470,7 +517,7 @@ export class IntegratedGameFlow {
     console.log('Seasonal event applied:', event.name);
     
     // イベント履歴に記録
-    this.recordEventHistory('seasonal', event.id, event.name, this.gameState.currentDay);
+    this.recordEventHistory('seasonal', event.id, event.name, this.getCurrentDay());
   }
 
   // 隠しイベント効果の適用
@@ -490,7 +537,7 @@ export class IntegratedGameFlow {
     console.log('Hidden event applied:', event.name);
     
     // イベント履歴に記録
-    this.recordEventHistory('hidden', event.id, event.name, this.gameState.currentDay);
+    this.recordEventHistory('hidden', event.id, event.name, this.getCurrentDay());
   }
 
   // イベント履歴の記録
@@ -567,14 +614,15 @@ export class IntegratedGameFlow {
     choice: StrategicChoice,
     selectedRoute: ChoiceRouteType
   ): ChoiceOutcome {
+    const currentDay = this.getCurrentDay();
     const modifiers = StrategicChoiceSystem.calculateProbabilityModifiers(
       this.getPlayerStats(),
       this.gameState.schoolStats,
       {
-        weather: this.gameState.currentDay.weather,
-        courtCondition: this.gameState.currentDay.courtCondition,
+        weather: currentDay.weather,
+        courtCondition: currentDay.courtCondition,
         teamMorale: this.calculateTeamMorale(),
-        currentMonth: this.gameState.currentDay.month
+        currentMonth: currentDay.month
       }
     );
 
@@ -603,8 +651,9 @@ export class IntegratedGameFlow {
   private checkForStrategicChoices(): StrategicChoice[] {
     // コンテキスト判定
     let context: any = 'daily_practice';
+    const currentDay = this.getCurrentDay();
     
-    if (this.gameState.currentDay.seasonalEvent) {
+    if (currentDay.seasonalEvent) {
       context = 'event_response';
     } else if (this.gameState.dayCount % 30 === 0) { // 月末は試合準備
       context = 'match_preparation';
@@ -617,9 +666,9 @@ export class IntegratedGameFlow {
       this.getPlayerStats(),
       this.gameState.schoolStats,
       {
-        weather: this.gameState.currentDay.weather,
-        courtCondition: this.gameState.currentDay.courtCondition,
-        currentMonth: this.gameState.currentDay.month
+        weather: currentDay.weather,
+        courtCondition: currentDay.courtCondition,
+        currentMonth: currentDay.month
       }
     );
 
@@ -888,7 +937,7 @@ export class IntegratedGameFlow {
   }
 
   public getCurrentDay(): CalendarDay {
-    return this.gameState.currentDay;
+    return this.gameState.calendarSystem.getCurrentState().currentDate;
   }
 
   public getAvailableCards(): TrainingCard[] {
@@ -906,6 +955,42 @@ export class IntegratedGameFlow {
   // 先読みしてカレンダーデイを取得（状態は進めない）
   public peekDays(count: number): CalendarDay[] {
     return this.gameState.calendarSystem.peekDays(count);
+  }
+
+  // 状態整合性チェック関数
+  public validateGameState(): boolean {
+    const calendarState = this.gameState.calendarSystem.getCurrentState();
+    const currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
+    
+    // カレンダー状態の検証
+    if (!this.gameState.calendarSystem.validateCalendarState()) {
+      console.error('Calendar state validation failed');
+      return false;
+    }
+    
+    // 日付カウントの整合性チェック
+    const expectedDayCount = this.calculateExpectedDayCount(currentDay);
+    if (this.gameState.dayCount !== expectedDayCount) {
+      console.error('Day count mismatch:', { 
+        expected: expectedDayCount, 
+        actual: this.gameState.dayCount 
+      });
+      return false;
+    }
+    
+    return true;
+  }
+
+  // 期待される日付カウントを計算
+  private calculateExpectedDayCount(currentDate: CalendarDay): number {
+    // 開始日（4月1日）からの経過日数を計算
+    // ハードコードされた年（2024）を修正し、正しい年を使用
+    const startDate = new Date(currentDate.year, 3, 1); // 4月1日
+    const currentDateObj = new Date(currentDate.year, currentDate.month - 1, currentDate.day);
+    const diffTime = currentDateObj.getTime() - startDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
   }
 
   // 緊急事態処理（体力0、資金不足等）
@@ -951,5 +1036,81 @@ export class IntegratedGameFlow {
     }
 
     return null;
+  }
+
+  // 詳細な診断ログを生成するメソッド
+  public generateDiagnosticLog(): string[] {
+    const logs: string[] = [];
+    const timestamp = new Date().toISOString();
+
+    logs.push(`=== 統合ゲームフロー診断ログ (${timestamp}) ===`);
+    logs.push('');
+
+    // ゲーム状態の基本情報
+    logs.push('【ゲーム状態基本情報】');
+    logs.push(`現在の日付: ${this.gameState.calendarSystem.getCurrentState().currentDate?.year || 'N/A'}年${this.gameState.calendarSystem.getCurrentState().currentDate?.month || 'N/A'}月${this.gameState.calendarSystem.getCurrentState().currentDate?.day || 'N/A'}日`);
+    logs.push(`学校名: ${this.gameState.schoolStats.funds || 0}円`);
+    logs.push(`プレイヤー数: ${this.gameState.allPlayers?.length || 0}人`);
+    logs.push(`カード数: ${this.gameState.availableCards.length}枚`);
+    logs.push(`資金: ${this.gameState.schoolStats.funds || 0}円`);
+    logs.push(`評判: ${this.gameState.schoolStats.reputation || 0}`);
+    logs.push('');
+
+    // カレンダーシステムの状態
+    logs.push('【カレンダーシステム状態】');
+    if (this.gameState.calendarSystem) {
+      const calendarLogs = this.gameState.calendarSystem.generateDiagnosticLog();
+      logs.push(...calendarLogs);
+    } else {
+      logs.push('❌ カレンダーシステムが初期化されていません');
+    }
+    logs.push('');
+
+    // カードシステムの状態
+    logs.push('【カードシステム状態】');
+    logs.push(`利用可能カード数: ${this.gameState.availableCards.length}`);
+    logs.push(`使用済みカード数: ${this.gameState.cardUsageHistory.length}枚`); // 使用済みカード数を追加
+    logs.push(`カード効果の累積: ${this.gameState.cardUsageHistory.reduce((sum, card) => sum + (card.actualEffects.skillGrowth ? Object.values(card.actualEffects.skillGrowth).reduce((s, v) => s + v, 0) : 0), 0)}`); // 累積スキル成長を追加
+    logs.push('');
+
+    // イベントシステムの状態
+    logs.push('【イベントシステム状態】');
+    logs.push(`アクティブイベント数: ${this.gameState.eventHistory?.filter(e => e.eventType === 'seasonal' || e.eventType === 'hidden').length || 0}`); // アクティブイベント数を追加
+    logs.push(`完了イベント数: ${this.gameState.eventHistory?.filter(e => e.eventType === 'seasonal' || e.eventType === 'hidden').length || 0}`); // 完了イベント数を追加
+    logs.push(`イベント履歴: ${this.gameState.eventHistory?.length || 0}件`);
+    logs.push('');
+
+    // 戦略選択システムの状態
+    logs.push('【戦略選択システム状態】');
+    logs.push(`現在の戦略: ${this.gameState.activeChoice ? this.gameState.activeChoice.title : 'なし'}`);
+    logs.push(`選択可能な戦略数: ${this.gameState.activeChoice ? 1 : 0}`); // 選択可能な戦略数を追加
+    logs.push('');
+
+    // データ整合性チェック
+    logs.push('【データ整合性チェック】');
+    const gameStateValid = this.validateGameState();
+    logs.push(`ゲーム状態検証: ${gameStateValid ? '✅ 正常' : '❌ 異常'}`);
+    
+    if (!gameStateValid) {
+      logs.push('❌ ゲーム状態に問題があります');
+      logs.push('推奨アクション: ゲーム状態の復旧を実行してください');
+    }
+    logs.push('');
+
+    // 推奨アクション
+    logs.push('【推奨アクション】');
+    if (!gameStateValid) {
+      logs.push('1. カレンダー状態の復旧を実行');
+      logs.push('2. ゲーム状態の再初期化を検討');
+      logs.push('3. データベースとの同期を確認');
+    } else {
+      logs.push('1. 現在の状態を維持');
+      logs.push('2. 定期的な状態検証を実行');
+      logs.push('3. バックアップの作成を検討');
+    }
+    logs.push('');
+
+    logs.push('=== 診断完了 ===');
+    return logs;
   }
 }

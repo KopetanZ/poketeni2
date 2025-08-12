@@ -352,7 +352,7 @@ export default function SugorokuTrainingBoard({
       {/* 中段：左に練習コートの簡易アニメ、右にマネージャー */}
       <div className="flex gap-4">
         {/* 左：テニスコート背景にラリー風アニメ（プレースホルダ画像と部員アイコン） */}
-        <div className="flex-1 bg-[url('/img/window.svg')] bg-cover bg-center rounded-2xl border border-slate-600/50 relative overflow-hidden">
+        <div className="flex-1 bg-[url('/window.svg')] bg-cover bg-center rounded-2xl border border-slate-600/50 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 to-slate-900/40" />
           {/* コート線の簡易表現 */}
           <div className="absolute inset-6 border-2 border-white/30 rounded-xl" />

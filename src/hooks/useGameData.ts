@@ -27,6 +27,9 @@ export function useGameData() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // 初期化完了フラグ（イベント重複発火防止用）
+  const [gameDataInitialized, setGameDataInitialized] = useState(false);
 
   // Supabaseの認証状態を確認
   useEffect(() => {
@@ -146,12 +149,30 @@ export function useGameData() {
 
       // 4. 現在の日付を学校データから取得
       const currentDate: GameDate = {
-        year: school.current_year,
+        year: Math.max(school.current_year, 2024), // 年が2024未満の場合は2024に修正
         month: school.current_month,
         day: school.current_day
       };
 
-      console.log('useGameData: データベースから取得した日付:', currentDate);
+      // データベースの年も修正（年が2024未満の場合）
+      if (school.current_year < 2024) {
+        console.log('useGameData: データベースの年を修正中:', school.current_year, '→ 2024');
+        const { error: updateError } = await supabase
+          .from('schools')
+          .update({ current_year: 2024 })
+          .eq('id', school.id);
+        
+        if (updateError) {
+          console.warn('useGameData: データベースの年修正に失敗:', updateError);
+        } else {
+          console.log('useGameData: データベースの年を2024に修正しました');
+          // ロールのschoolオブジェクトも更新
+          school.current_year = 2024;
+        }
+      }
+
+      console.log('useGameData: データベースから取得した日付:', { year: school.current_year, month: school.current_month, day: school.current_day });
+      console.log('useGameData: 修正後の日付:', currentDate);
       console.log('useGameData: Step 4: Setting game data...');
       setGameData({
         school,
@@ -162,16 +183,18 @@ export function useGameData() {
       
       // カレンダーシステムの状態を正しく初期化するためのコールバックを提供
       // これにより、IntegratedGameInterfaceでカレンダーの状態を復元できる
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && !gameDataInitialized) {
         // 少し遅延を入れて、Reactの状態更新が完了してからイベントを発火
         setTimeout(() => {
           // グローバルイベントとして発火（IntegratedGameInterfaceで受信）
           window.dispatchEvent(new CustomEvent('gameDataInitialized', {
             detail: {
               currentDate,
-              schoolId: school.id
+              schoolId: school.id,
+              isFirstTime: true
             }
           }));
+          setGameDataInitialized(true);
           console.log('useGameData: gameDataInitializedイベントを発火しました:', currentDate);
         }, 100);
       }
@@ -232,7 +255,7 @@ export function useGameData() {
           name: schoolName,
           reputation: 0,
           funds: 1000,
-          current_year: 2024,
+          current_year: 2024, // 確実に2024年を設定
           current_month: 4,
           current_day: 1
         })

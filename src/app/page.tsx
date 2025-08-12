@@ -50,13 +50,31 @@ export default function Home() {
   // ゲーム状態の同期用
   const [currentGameState, setCurrentGameState] = useState<{
     currentDate: GameDate;
-    schoolStats: { funds: number; reputation: number; facilities: number };
+    schoolStats: { 
+      name: string;
+      funds: number; 
+      reputation: number; 
+      facilities: number;
+      totalMatches: number;
+      totalWins: number;
+      totalTournaments: number;
+      founded: string;
+    };
   } | null>(null);
 
   // ゲーム状態の更新ハンドラー
   const handleGameStateUpdate = (newState: {
     currentDate: GameDate;
-    schoolStats: { funds: number; reputation: number; facilities: number };
+    schoolStats: { 
+      name: string;
+      funds: number; 
+      reputation: number; 
+      facilities: number;
+      totalMatches: number;
+      totalWins: number;
+      totalTournaments: number;
+      founded: string;
+    };
   }) => {
     setCurrentGameState(newState);
     
@@ -334,9 +352,17 @@ export default function Home() {
           <IntegratedGameInterface
             initialPlayer={currentDisplayPlayer}
             initialSchoolStats={{
+              name: school.name,
               funds: currentGameState?.schoolStats.funds ?? school.funds,
               reputation: currentGameState?.schoolStats.reputation ?? school.reputation,
-              facilities: currentGameState?.schoolStats.facilities ?? 50
+              facilities: currentGameState?.schoolStats.facilities ?? 50,
+              current_year: currentDate.year,
+              current_month: currentDate.month,
+              current_day: currentDate.day,
+              totalMatches: players.reduce((sum, p) => sum + (p.matches_played || 0), 0),
+              totalWins: players.reduce((sum, p) => sum + (p.matches_won || 0), 0),
+              totalTournaments: 0, // TODO: 実装
+              founded: "2024年"
             }}
             allPlayers={players}
             schoolId={school.id}
@@ -410,6 +436,7 @@ export default function Home() {
               totalTournaments: 0, // TODO: 実装
               founded: "2024年"
             }}
+            gameFlow={(window as any).__GAME_FLOW__}
           />
         </div>
       )}
