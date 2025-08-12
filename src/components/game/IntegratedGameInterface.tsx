@@ -85,6 +85,26 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [evolutionTarget, setEvolutionTarget] = useState<Player | null>(null);
   const promptedEvolutionIdsRef = useRef<Set<string>>(new Set());
 
+  // Supabase接続状態を確認するヘルパー関数
+  const checkSupabaseConnection = async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('schools')
+        .select('id')
+        .limit(1);
+      
+      if (error) {
+        console.error('Supabase接続エラー:', error);
+        return false;
+      }
+      
+      return true;
+    } catch (e) {
+      console.error('Supabase接続確認に失敗:', e);
+      return false;
+    }
+  };
+
   // ゲーム状態の同期
   const syncGameState = () => {
     const newGameState = gameFlow.getGameState();
@@ -95,11 +115,19 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       const calendarState = newGameState.calendarSystem.getCurrentState();
       console.log('カレンダー状態同期:', calendarState.currentDate);
       
-      // カレンダー状態をデータベースに永続化
+      // カレンダー状態をデータベースに永続化（エラーが発生してもゲーム進行を妨げない）
       if (schoolId && calendarState.currentDate) {
-        (async () => {
+        // 非同期処理を分離し、エラーが発生してもゲーム進行を妨げない
+        const persistCalendarState = async () => {
           try {
-            await supabase
+            // まず接続状態を確認
+            const isConnected = await checkSupabaseConnection();
+            if (!isConnected) {
+              console.warn('Supabase接続が利用できないため、カレンダー状態の永続化をスキップします');
+              return;
+            }
+            
+            const { error } = await supabase
               .from('schools')
               .update({
                 current_year: calendarState.currentDate.year,
@@ -107,11 +135,20 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 current_day: calendarState.currentDate.day
               })
               .eq('id', schoolId);
-            console.log('カレンダー状態をデータベースに永続化しました:', calendarState.currentDate);
+            
+            if (error) {
+              console.error('カレンダー状態の永続化でエラーが発生:', error);
+            } else {
+              console.log('カレンダー状態をデータベースに永続化しました:', calendarState.currentDate);
+            }
           } catch (e) {
             console.error('カレンダー状態の永続化に失敗:', e);
+            // エラーが発生してもゲーム進行を妨げない
           }
-        })();
+        };
+        
+        // バックグラウンドで実行
+        persistCalendarState();
       }
     }
   };
@@ -314,11 +351,11 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
       setNotifications(prev => [...prev, ...progressNotifications].slice(-5));
 
-      // 学校日付・学校ステータスの永続化
-      (async () => {
-        try {
-          if (schoolId) {
-            await supabase
+      // 学校日付・学校ステータスの永続化（エラーが発生してもゲーム進行を妨げない）
+      if (schoolId) {
+        const persistSchoolData = async () => {
+          try {
+            const { error } = await supabase
               .from('schools')
               .update({
                 current_year: newDate.year,
@@ -328,11 +365,21 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 reputation: stateAfter.schoolStats.reputation
               })
               .eq('id', schoolId);
+            
+            if (error) {
+              console.error('学校データの永続化でエラーが発生:', error);
+            } else {
+              console.log('学校データを永続化しました:', { date: newDate, stats: stateAfter.schoolStats });
+            }
+          } catch (e) {
+            console.error('Failed to persist school date/stats:', e);
+            // エラーが発生してもゲーム進行を妨げない
           }
-        } catch (e) {
-          console.error('Failed to persist school date/stats:', e);
-        }
-      })();
+        };
+        
+        // バックグラウンドで実行
+        persistSchoolData();
+      }
       
       // 手札の状態を確認
       const cardsAfterUsage = gameFlow.getGameState().availableCards;
