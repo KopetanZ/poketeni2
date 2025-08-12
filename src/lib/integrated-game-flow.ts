@@ -104,9 +104,16 @@ export class IntegratedGameFlow {
     if (this.gameState.calendarSystem) {
       // MonthTypeの型制約に合わせて型キャスト
       const monthType = month as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+      
+      // カレンダーの準備状態を確認
+      const isReady = this.gameState.calendarSystem.isCalendarReady();
+      console.log('IntegratedGameFlow: カレンダー準備状態:', isReady);
+      
       this.gameState.calendarSystem.setCurrentDate(year, monthType, day);
       this.gameState.currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
+      
       console.log('IntegratedGameFlow: カレンダーを日付で初期化しました:', { year, month, day });
+      console.log('IntegratedGameFlow: 現在のカレンダー状態:', this.gameState.currentDay);
     }
   }
 

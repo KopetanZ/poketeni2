@@ -309,6 +309,7 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
 
 export class CalendarSystem {
   private currentState: CalendarState;
+  private isCalendarGenerated: boolean = false; // カレンダー生成済みフラグ
 
   constructor(startYear: number = 1) {
     this.currentState = {
@@ -324,11 +325,17 @@ export class CalendarSystem {
       }
     };
 
+    // 初期カレンダーを生成
     this.generateYearCalendar();
   }
 
-  // 年間カレンダー生成
+  // 年間カレンダー生成（一度だけ実行）
   private generateYearCalendar(): void {
+    if (this.isCalendarGenerated) {
+      console.log('=== generateYearCalendar: 既に生成済みのためスキップ ===');
+      return;
+    }
+
     console.log('=== generateYearCalendar 開始 ===');
     console.log('現在の年:', this.currentState.currentYear);
     
@@ -348,6 +355,8 @@ export class CalendarSystem {
     }
 
     this.currentState.yearCalendar = calendar;
+    this.isCalendarGenerated = true; // 生成済みフラグを設定
+    
     console.log('生成されたカレンダー長さ:', calendar.length);
     console.log('最初の日:', calendar[0]);
     console.log('最後の日:', calendar[calendar.length - 1]);
@@ -612,22 +621,58 @@ export class CalendarSystem {
 
   // 現在の日付を設定（外部からの状態復元用）
   public setCurrentDate(year: number, month: MonthType, day: number): void {
-    // 週と曜日を再計算
-    const date = new Date(2024, month - 1, day);
-    const dayOfWeek = date.getDay();
-    const week = Math.ceil(day / 7) as WeekType;
+    // 既存のカレンダーから該当する日付を取得
+    const existingDay = this.getExistingDay(year, month, day);
     
-    // 新しい日付を生成
-    const newDate = this.generateDay(year, month, week, day);
+    if (existingDay) {
+      // 既存のカレンダーから日付情報を取得
+      this.currentState.currentDate = existingDay;
+      this.currentState.currentYear = year;
+      this.currentState.currentSemester = month <= 9 ? 1 : 2;
+      
+      console.log('CalendarSystem: 既存カレンダーから日付を設定しました:', existingDay);
+    } else {
+      // フォールバック: 新しい日付を生成
+      const date = new Date(2024, month - 1, day);
+      const dayOfWeek = date.getDay();
+      const week = Math.ceil(day / 7) as WeekType;
+      
+      const newDate = this.generateDay(year, month, week, day);
+      
+      this.currentState.currentDate = newDate;
+      this.currentState.currentYear = year;
+      this.currentState.currentSemester = month <= 9 ? 1 : 2;
+      
+      console.log('CalendarSystem: 新規生成で日付を設定しました:', { year, month, day, week, dayOfWeek });
+    }
+  }
+
+  // 既存のカレンダーから特定の日付を取得
+  private getExistingDay(year: number, month: MonthType, day: number): CalendarDay | null {
+    if (!this.isCalendarGenerated || this.currentState.yearCalendar.length === 0) {
+      return null;
+    }
     
-    // 状態を更新
-    this.currentState.currentDate = newDate;
-    this.currentState.currentYear = year;
+    // 既存のカレンダーから該当する日付を検索
+    const existingDay = this.currentState.yearCalendar.find(
+      calendarDay => calendarDay.year === year && 
+                     calendarDay.month === month && 
+                     calendarDay.day === day
+    );
     
-    // 学期判定更新
-    this.currentState.currentSemester = month <= 9 ? 1 : 2;
-    
-    console.log('CalendarSystem: 日付を設定しました:', { year, month, day, week, dayOfWeek });
+    return existingDay || null;
+  }
+
+  // カレンダーの状態をリセット（デバッグ用）
+  public resetCalendar(): void {
+    this.isCalendarGenerated = false;
+    this.currentState.yearCalendar = [];
+    console.log('CalendarSystem: カレンダー状態をリセットしました');
+  }
+
+  // カレンダーの生成状態を確認
+  public isCalendarReady(): boolean {
+    return this.isCalendarGenerated && this.currentState.yearCalendar.length > 0;
   }
 
   // 先読み: 現在日付から count 日分の CalendarDay を返す（状態は進めない）
