@@ -45,7 +45,12 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   onGameStateUpdate
 }) => {
   // ゲームフロー管理
-  const [gameFlow] = useState(() => new IntegratedGameFlow(initialPlayer, initialSchoolStats, allPlayers));
+  const [gameFlow] = useState(() => new IntegratedGameFlow(
+    initialPlayer, 
+    initialSchoolStats, 
+    schoolId || 'default', 
+    allPlayers
+  ));
   const [gameState, setGameState] = useState<GameState>(gameFlow.getGameState());
   
   // UI状態管理

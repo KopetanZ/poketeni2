@@ -66,8 +66,8 @@ export class IntegratedGameFlow {
   private gameState: GameState;
   private schoolId: string;
   
-  constructor(initialPlayer: Player, initialSchoolStats: any, schoolId: string, allPlayers?: Player[]) {
-    this.schoolId = schoolId;
+  constructor(initialPlayer: Player, initialSchoolStats: any, schoolId?: string, allPlayers?: Player[]) {
+    this.schoolId = schoolId || 'default';
     
     // カレンダーシステムの初期化
     const calendarSystem = new CalendarSystem();
