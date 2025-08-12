@@ -177,6 +177,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       // 進行前の状態を保存
       const stateBefore = gameFlow.getGameState();
       const originalDayCount = stateBefore.dayCount;
+      const originalDate = gameFlow.getCurrentDay();
 
       // IntegratedGameFlow の useTrainingCard を呼び出し（すごろく進行含む）
       const result = gameFlow.useTrainingCard(card);
@@ -184,17 +185,29 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       setLastCardResult(result);
       setShowCardResult(true);
       
-      // 日付進行のアニメーション用に一時的に状態を保持
-      // アニメーション完了後にsyncGameStateを呼び出し
-      setTimeout(() => {
-        syncGameState();
-        setIsAdvancingDay(false);
-      }, 2000); // 2秒後に状態を同期
+      // 即座に状態を同期（アニメーションは別途処理）
+      syncGameState();
+      
+      // 日付進行の確認
+      const stateAfter = gameFlow.getGameState();
+      const newDate = gameFlow.getCurrentDay();
+      
+      console.log('カード使用前の日付:', originalDate);
+      console.log('カード使用後の日付:', newDate);
+      console.log('進行日数:', result.daysProgressed);
+      
+      // 日付が実際に進んでいるかチェック
+      if (result.daysProgressed > 0) {
+        // 日付が進んでいる場合、通知を追加
+        setNotifications(prev => [...prev, `日付が${result.daysProgressed}日進みました: ${originalDate.month}/${originalDate.day} → ${newDate.month}/${newDate.day}`].slice(-5));
+      } else {
+        // 日付が進んでいない場合、警告を追加
+        setNotifications(prev => [...prev, '警告: カード使用後も日付が進んでいません'].slice(-5));
+      }
       
       // プレイヤー能力・経験値の永続化（全部員対象）
       (async () => {
         try {
-          const stateAfter = gameFlow.getGameState();
           const playersToPersist = stateAfter.allPlayers || [stateAfter.player];
           for (const p of playersToPersist) {
             await supabase
@@ -247,7 +260,6 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       
       // 進化可能チェック（新規のみ）
       try {
-        const stateAfter = gameFlow.getGameState();
         const candidates = EvolutionSystem
           .getEvolvablePlayers(stateAfter.allPlayers || [stateAfter.player])
           .filter(p => !promptedEvolutionIdsRef.current.has(p.id));
@@ -264,17 +276,15 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       // 学校日付・学校ステータスの永続化
       (async () => {
         try {
-          const current = gameFlow.getCurrentDay();
-          const after = gameFlow.getGameState();
           if (schoolId) {
             await supabase
               .from('schools')
               .update({
-                current_year: current.year,
-                current_month: current.month,
-                current_day: current.day,
-                funds: after.schoolStats.funds,
-                reputation: after.schoolStats.reputation
+                current_year: newDate.year,
+                current_month: newDate.month,
+                current_day: newDate.day,
+                funds: stateAfter.schoolStats.funds,
+                reputation: stateAfter.schoolStats.reputation
               })
               .eq('id', schoolId);
           }
@@ -283,16 +293,20 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         }
       })();
       
-      // 1日に選べるカードは1枚: 使用後すぐに補充せず、次の日の頭で補充
-      // ここでは state 同期のみ
-      syncGameState();
+      // 手札の状態を確認
+      const cardsAfterUsage = gameFlow.getGameState().availableCards;
+      console.log('カード使用後の手札数:', cardsAfterUsage.length);
+      
+      // 手札が空になっている場合は警告
+      if (cardsAfterUsage.length === 0) {
+        setNotifications(prev => [...prev, '警告: 手札が空になっています。カード補充を確認してください。'].slice(-5));
+      }
       
       // 親コンポーネントにゲーム状態の更新を通知
       if (onGameStateUpdate) {
-        const updatedState = gameFlow.getGameState();
         onGameStateUpdate({
-          currentDate: updatedState.currentDay,
-          schoolStats: updatedState.schoolStats
+          currentDate: newDate,
+          schoolStats: stateAfter.schoolStats
         });
       }
       
@@ -308,10 +322,14 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         setShowStrategicChoice(true);
       }
       
+      // アニメーション完了後にローディング状態を解除
+      setTimeout(() => {
+        setIsAdvancingDay(false);
+      }, 2000);
+      
     } catch (error) {
-      console.error('Error using card:', error);
-      setNotifications(prev => [...prev, 'カード使用中にエラーが発生しました'].slice(-5));
-    } finally {
+      console.error('カード使用処理でエラーが発生:', error);
+      setNotifications(prev => [...prev, 'カード使用処理でエラーが発生しました'].slice(-5));
       setIsAdvancingDay(false);
     }
   };

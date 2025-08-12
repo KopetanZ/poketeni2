@@ -189,6 +189,20 @@ export default function SugorokuTrainingBoard({
     return 'white';
   };
 
+  // 確定的な疑似乱数生成（同じ入力に対して同じ結果を返す）
+  const deterministicRandom = (seed: number): number => {
+    // シンプルな線形合同法
+    const a = 1664525;
+    const c = 1013904223;
+    const m = Math.pow(2, 32);
+    
+    // シードを32ビット整数に変換
+    let x = (seed * a + c) % m;
+    x = (x * a + c) % m; // もう一度適用してより良い分布に
+    
+    return x / m; // 0-1の範囲に正規化
+  };
+
   // 特別イベントを決定（仕様書通りの季節イベント）
   const getSpecialEvent = (day: number) => {
     const cycle = 24;
@@ -200,14 +214,17 @@ export default function SugorokuTrainingBoard({
     if (position === 16) return { type: 'shop', name: 'ショップ' };
     if (position === 12) return { type: 'challenge', name: '強化試合' };
     
-    // 隠しイベント（ランダム）
-    if (Math.random() < 0.1) {
+    // 隠しイベント（確定的）
+    const seed = day * 1000 + position;
+    const random = deterministicRandom(seed);
+    if (random < 0.1) {
       const events = [
         { type: 'bonus', name: 'ラッキーイベント' },
         { type: 'evolution', name: '隠し進化' },
         { type: 'shop', name: '隠しショップ' }
       ];
-      return events[Math.floor(Math.random() * events.length)];
+      const eventIndex = Math.floor(random * 10) % events.length; // 確定的な選択
+      return events[eventIndex];
     }
     
     return null;

@@ -309,25 +309,10 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
 
 export class CalendarSystem {
   private currentState: CalendarState;
-  private isInitialized: boolean = false;
 
   constructor(startYear: number = 1) {
-    // まず基本的な状態を作成
-    const initialDate = {
-      year: startYear,
-      month: 4 as MonthType,
-      week: 1 as WeekType,
-      day: 1,
-      dayOfWeek: 1,
-      square: 'white' as SquareType,
-      weather: 'sunny' as WeatherType,
-      courtCondition: 'normal' as CourtCondition,
-      seasonalEvent: undefined,
-      hiddenEvent: undefined
-    };
-
     this.currentState = {
-      currentDate: initialDate,
+      currentDate: this.generateDay(startYear, 4, 1, 1),
       currentYear: startYear,
       currentSemester: 1,
       daysUntilGraduation: 365 * 3, // 3年間
@@ -339,25 +324,14 @@ export class CalendarSystem {
       }
     };
 
-    // 状態が初期化された後で、完全な日付情報を生成
-    this.currentState.currentDate = this.generateDay(startYear, 4, 1, 1);
     this.generateYearCalendar();
-    this.isInitialized = true;
-  }
-
-  // 既存の状態から復元するためのメソッド
-  public restoreFromState(state: CalendarState): void {
-    this.currentState = { ...state };
-    this.isInitialized = true;
-  }
-
-  // 初期化状態の確認
-  public get isReady(): boolean {
-    return this.isInitialized;
   }
 
   // 年間カレンダー生成
   private generateYearCalendar(): void {
+    console.log('=== generateYearCalendar 開始 ===');
+    console.log('現在の年:', this.currentState.currentYear);
+    
     const calendar: CalendarDay[] = [];
     const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     
@@ -374,6 +348,10 @@ export class CalendarSystem {
     }
 
     this.currentState.yearCalendar = calendar;
+    console.log('生成されたカレンダー長さ:', calendar.length);
+    console.log('最初の日:', calendar[0]);
+    console.log('最後の日:', calendar[calendar.length - 1]);
+    console.log('=== generateYearCalendar 終了 ===');
   }
 
   // 個別日付生成（マス色決定ロジック含む）
@@ -406,6 +384,20 @@ export class CalendarSystem {
       seasonalEvent,
       hiddenEvent
     };
+  }
+
+  // 確定的な疑似乱数生成（同じ入力に対して同じ結果を返す）
+  private deterministicRandom(seed: number): number {
+    // シンプルな線形合同法
+    const a = 1664525;
+    const c = 1013904223;
+    const m = Math.pow(2, 32);
+    
+    // シードを32ビット整数に変換
+    let x = (seed * a + c) % m;
+    x = (x * a + c) % m; // もう一度適用してより良い分布に
+    
+    return x / m; // 0-1の範囲に正規化
   }
 
   // マス色決定ロジック（栄冠ナイン風確率分布）
@@ -450,20 +442,6 @@ export class CalendarSystem {
     }
 
     return 'white'; // フォールバック
-  }
-
-  // 確定的な疑似乱数生成（同じ入力に対して同じ結果を返す）
-  private deterministicRandom(seed: number): number {
-    // シンプルな線形合同法
-    const a = 1664525;
-    const c = 1013904223;
-    const m = Math.pow(2, 32);
-    
-    // シードを32ビット整数に変換
-    let x = (seed * a + c) % m;
-    x = (x * a + c) % m; // もう一度適用してより良い分布に
-    
-    return x / m; // 0-1の範囲に正規化
   }
 
   // 天候生成
@@ -569,23 +547,60 @@ export class CalendarSystem {
 
   // カレンダー進行
   public advanceDay(): CalendarDay {
-    const nextDayIndex = this.currentState.yearCalendar.findIndex(
-      day => day.month === this.currentState.currentDate.month && 
-             day.day === this.currentState.currentDate.day
-    ) + 1;
-
-    if (nextDayIndex >= this.currentState.yearCalendar.length) {
-      // 年末 -> 次の年へ
-      this.currentState.currentYear++;
-      this.currentState.daysUntilGraduation -= 365;
-      this.generateYearCalendar();
-      this.currentState.currentDate = this.currentState.yearCalendar[0];
-    } else {
-      this.currentState.currentDate = this.currentState.yearCalendar[nextDayIndex];
+    console.log('=== advanceDay 開始 ===');
+    console.log('現在の日付:', this.currentState.currentDate);
+    
+    // 現在の日付から次の日を計算
+    const currentDate = this.currentState.currentDate;
+    let nextYear = currentDate.year;
+    let nextMonth = currentDate.month;
+    let nextDay = currentDate.day + 1;
+    let nextWeek = currentDate.week;
+    
+    // 月の日数を取得
+    const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const currentMonthDays = monthDays[currentDate.month - 1];
+    
+    // 日付の調整
+    if (nextDay > currentMonthDays) {
+      nextDay = 1;
+      nextMonth = (currentDate.month % 12) + 1;
+      
+      if (nextMonth === 1) {
+        nextYear++;
+      }
     }
-
+    
+    // 週の調整（7日ごとに週を更新）
+    const daysInCurrentWeek = (currentDate.day - 1) % 7;
+    if (daysInCurrentWeek === 6) { // 週の最後の日
+      nextWeek = (currentDate.week % 4) + 1;
+    }
+    
+    console.log('計算された次の日付:', { year: nextYear, month: nextMonth, week: nextWeek, day: nextDay });
+    
+    // 新しい日付を生成
+    const nextDate = this.generateDay(
+      nextYear,
+      nextMonth as MonthType,
+      nextWeek as WeekType,
+      nextDay
+    );
+    
+    // 状態を更新
+    this.currentState.currentDate = nextDate;
+    this.currentState.currentYear = nextYear;
+    
     // 学期判定更新
-    this.currentState.currentSemester = this.currentState.currentDate.month <= 9 ? 1 : 2;
+    this.currentState.currentSemester = nextDate.month <= 9 ? 1 : 2;
+    
+    // 卒業までの日数を更新
+    if (nextYear > this.currentState.currentYear) {
+      this.currentState.daysUntilGraduation -= 365;
+    }
+    
+    console.log('進行後の日付:', this.currentState.currentDate);
+    console.log('=== advanceDay 終了 ===');
 
     return this.currentState.currentDate;
   }

@@ -66,15 +66,10 @@ export class IntegratedGameFlow {
   private gameState: GameState;
   private schoolId: string;
   
-  constructor(initialPlayer: Player, initialSchoolStats: any, schoolId?: string, allPlayers?: Player[]) {
-    this.schoolId = schoolId || 'default';
-    
-    // カレンダーシステムの初期化
-    const calendarSystem = new CalendarSystem();
-    
+  constructor(initialPlayer: Player, initialSchoolStats: any, schoolId: string, allPlayers?: Player[]) {
     this.gameState = {
-      calendarSystem: calendarSystem,
-      currentDay: calendarSystem.getCurrentState().currentDate,
+      calendarSystem: new CalendarSystem(),
+      currentDay: new CalendarSystem().getCurrentState().currentDate,
       player: initialPlayer,
       allPlayers: allPlayers,
       schoolStats: {
@@ -177,6 +172,11 @@ export class IntegratedGameFlow {
 
     // 新しい日のカード生成
     const cardChanges = await this.updateDailyCards();
+    
+    // 手札が少い場合は補充
+    if (this.gameState.availableCards.length < 3) {
+      this.replenishCards();
+    }
     
     // 戦略的選択肢の判定
     const availableChoices = this.checkForStrategicChoices();
@@ -292,9 +292,16 @@ export class IntegratedGameFlow {
     const newDays: CalendarDay[] = [];
     const triggeredEvents: string[] = [];
     
+    console.log('=== カード使用による日付進行開始 ===');
+    console.log('進行前の日付:', this.gameState.currentDay);
+    console.log('進行する日数:', daysToProgress);
+    
     for (let i = 0; i < daysToProgress; i++) {
+      console.log(`--- ${i + 1}日目の進行 ---`);
       const dayResult = this.gameState.calendarSystem.advanceDay();
       newDays.push(dayResult);
+      
+      console.log(`${i + 1}日目進行後の日付:`, dayResult);
       
       // === マス目効果の独立した処理 ===
       const landedSquareEffect = this.gameState.calendarSystem.getSquareEffect(dayResult.square);
@@ -319,6 +326,9 @@ export class IntegratedGameFlow {
     // 現在の日付を更新
     this.gameState.currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
     
+    console.log('進行後の最終日付:', this.gameState.currentDay);
+    console.log('=== カード使用による日付進行終了 ===');
+    
     // 統計更新
     this.gameState.stats.totalCardsUsed++;
     this.gameState.cardUsageHistory.push(result);
@@ -329,7 +339,10 @@ export class IntegratedGameFlow {
     );
 
     // カード補充処理（学校評判による調整）
-    this.replenishCardsAfterUsage();
+    // 手札が少なくなった場合のみ補充
+    if (this.gameState.availableCards.length < 3) {
+      this.replenishCardsAfterUsage();
+    }
 
     return {
       ...result,
@@ -341,11 +354,17 @@ export class IntegratedGameFlow {
 
   // カード使用後の補充処理
   private replenishCardsAfterUsage(): void {
+    console.log('=== 手札補充処理開始 ===');
     const targetCardCount = this.calculateDailyCardCount();
     const currentCount = this.gameState.availableCards.length;
     
+    console.log('目標カード数:', targetCardCount);
+    console.log('現在のカード数:', currentCount);
+    
     if (currentCount < targetCardCount) {
       const cardsNeeded = targetCardCount - currentCount;
+      console.log('補充が必要なカード数:', cardsNeeded);
+      
       const newCards = TrainingCardSystem.generateCardDrop(
         this.gameState.schoolStats.reputation,
         this.gameState.player.level || 1,
@@ -353,12 +372,20 @@ export class IntegratedGameFlow {
         'daily_practice'
       );
       
+      console.log('生成されたカード:', newCards.cards);
+      
       this.gameState.availableCards.push(...newCards.cards);
       
       // レジェンドカードの統計更新
       const legendaryCards = newCards.cards.filter(card => card.rarity === 'legendary');
       this.gameState.stats.legendaryCardsObtained += legendaryCards.length;
+      
+      console.log('補充後のカード数:', this.gameState.availableCards.length);
+    } else {
+      console.log('カード補充は不要です');
     }
+    
+    console.log('=== 手札補充処理終了 ===');
   }
 
   // マス目効果の適用（独立した処理）
@@ -508,19 +535,9 @@ export class IntegratedGameFlow {
         });
 
       if (error) {
-        // 403エラー（権限不足）の場合は処理をスキップ
-        if (error.code === '403' || error.message?.includes('403')) {
-          console.warn('Event history persistence skipped due to permission issues:', error.message);
-          return;
-        }
         console.error('Failed to persist event history:', error);
       }
-    } catch (error: any) {
-      // 権限関連のエラーの場合は処理をスキップ
-      if (error?.status === 403 || error?.message?.includes('403') || error?.code === '403') {
-        console.warn('Event history persistence skipped due to permission issues');
-        return;
-      }
+    } catch (error) {
       console.error('Error persisting event history:', error);
     }
   }
