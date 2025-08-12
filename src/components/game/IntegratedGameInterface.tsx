@@ -87,7 +87,14 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
   // ゲーム状態の同期
   const syncGameState = () => {
-    setGameState(gameFlow.getGameState());
+    const newGameState = gameFlow.getGameState();
+    setGameState(newGameState);
+    
+    // カレンダー状態も同期
+    if (newGameState.calendarSystem) {
+      const calendarState = newGameState.calendarSystem.getCurrentState();
+      console.log('カレンダー状態同期:', calendarState.currentDate);
+    }
   };
 
   // イベントログを追加する関数
@@ -200,6 +207,14 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       if (result.daysProgressed > 0) {
         // 日付が進んでいる場合、通知を追加
         setNotifications(prev => [...prev, `日付が${result.daysProgressed}日進みました: ${originalDate.month}/${originalDate.day} → ${newDate.month}/${newDate.day}`].slice(-5));
+        
+        // 日付進行後の状態を強制的に更新
+        setGameState(prevState => ({
+          ...prevState,
+          currentDay: newDate,
+          dayCount: prevState.dayCount + result.daysProgressed,
+          availableCards: gameFlow.getAvailableCards() // 手札も更新
+        }));
       } else {
         // 日付が進んでいない場合、警告を追加
         setNotifications(prev => [...prev, '警告: カード使用後も日付が進んでいません'].slice(-5));
