@@ -94,6 +94,25 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     if (newGameState.calendarSystem) {
       const calendarState = newGameState.calendarSystem.getCurrentState();
       console.log('カレンダー状態同期:', calendarState.currentDate);
+      
+      // カレンダー状態をデータベースに永続化
+      if (schoolId && calendarState.currentDate) {
+        (async () => {
+          try {
+            await supabase
+              .from('schools')
+              .update({
+                current_year: calendarState.currentDate.year,
+                current_month: calendarState.currentDate.month,
+                current_day: calendarState.currentDate.day
+              })
+              .eq('id', schoolId);
+            console.log('カレンダー状態をデータベースに永続化しました:', calendarState.currentDate);
+          } catch (e) {
+            console.error('カレンダー状態の永続化に失敗:', e);
+          }
+        })();
+      }
     }
   };
 
@@ -111,6 +130,13 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   useEffect(() => {
     if (allPlayers && allPlayers.length > 0) {
       gameFlow.updateAllPlayers(allPlayers);
+      
+      // ゲーム状態からカレンダーシステムの状態を復元
+      if (gameState?.currentDay) {
+        console.log('ゲーム状態からカレンダー状態を復元:', gameState.currentDay);
+        // カレンダーシステムの状態を復元（実装予定）
+      }
+      
       syncGameState();
       
       // ゲーム開始ログを追加
@@ -120,7 +146,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         details: '栄冠ナイン風テニス部シミュレーターを開始しました'
       });
     }
-  }, [allPlayers, gameFlow]);
+  }, [allPlayers, gameFlow, gameState]);
 
   // 日付進行処理
   const handleAdvanceDay = async () => {

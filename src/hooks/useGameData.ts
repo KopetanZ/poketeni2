@@ -151,6 +151,7 @@ export function useGameData() {
         day: school.current_day
       };
 
+      console.log('useGameData: データベースから取得した日付:', currentDate);
       console.log('useGameData: Step 4: Setting game data...');
       setGameData({
         school,
