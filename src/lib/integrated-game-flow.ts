@@ -67,6 +67,8 @@ export class IntegratedGameFlow {
   private schoolId: string;
   
   constructor(initialPlayer: Player, initialSchoolStats: any, schoolId: string, allPlayers?: Player[]) {
+    this.schoolId = schoolId; // schoolIdを初期化
+    
     this.gameState = {
       calendarSystem: new CalendarSystem(),
       currentDay: new CalendarSystem().getCurrentState().currentDate,
