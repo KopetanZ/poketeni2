@@ -312,8 +312,22 @@ export class CalendarSystem {
   private isInitialized: boolean = false;
 
   constructor(startYear: number = 1) {
+    // まず基本的な状態を作成
+    const initialDate = {
+      year: startYear,
+      month: 4 as MonthType,
+      week: 1 as WeekType,
+      day: 1,
+      dayOfWeek: 1,
+      square: 'white' as SquareType,
+      weather: 'sunny' as WeatherType,
+      courtCondition: 'normal' as CourtCondition,
+      seasonalEvent: undefined,
+      hiddenEvent: undefined
+    };
+
     this.currentState = {
-      currentDate: this.generateDay(startYear, 4, 1, 1),
+      currentDate: initialDate,
       currentYear: startYear,
       currentSemester: 1,
       daysUntilGraduation: 365 * 3, // 3年間
@@ -325,6 +339,8 @@ export class CalendarSystem {
       }
     };
 
+    // 状態が初期化された後で、完全な日付情報を生成
+    this.currentState.currentDate = this.generateDay(startYear, 4, 1, 1);
     this.generateYearCalendar();
     this.isInitialized = true;
   }
@@ -372,7 +388,7 @@ export class CalendarSystem {
     const weather = this.generateWeather(month);
     
     // コート状況
-    const courtCondition = this.generateCourtCondition();
+    const courtCondition = this.generateCourtCondition(month, day);
     
     // イベント判定
     const seasonalEvent = this.checkSeasonalEvent(month, week);
@@ -476,9 +492,22 @@ export class CalendarSystem {
   }
 
   // コート状況生成
-  private generateCourtCondition(): CourtCondition {
+  private generateCourtCondition(month?: number, day?: number): CourtCondition {
     // 確定的な疑似乱数を使用（日付に基づく）
-    const seed = this.currentState.currentDate.month * 100 + this.currentState.currentDate.day;
+    let seed: number;
+    
+    if (month !== undefined && day !== undefined) {
+      // 引数から日付情報を取得
+      seed = month * 100 + day;
+    } else if (this.currentState?.currentDate) {
+      // 既存の状態から日付情報を取得
+      seed = this.currentState.currentDate.month * 100 + this.currentState.currentDate.day;
+    } else {
+      // フォールバック: 現在の日時を使用
+      const now = new Date();
+      seed = (now.getMonth() + 1) * 100 + now.getDate();
+    }
+    
     const random = this.deterministicRandom(seed);
     
     if (random < 0.1) return 'excellent';
