@@ -268,6 +268,8 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
           }
         } catch (error) {
           console.error('gameDataInitialized: カレンダー状態初期化エラー:', error);
+          // エラーが発生した場合はフラグをリセット
+          setCalendarInitialized(false);
         }
       }
     };
@@ -279,7 +281,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     return () => {
       window.removeEventListener('gameDataInitialized', handleGameDataInitialized as EventListener);
     };
-  }, [gameFlow, schoolId]);
+  }, [gameFlow, schoolId, calendarInitialized]);
 
   // 日付進行処理
   const handleAdvanceDay = async () => {
@@ -356,15 +358,19 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       const result = gameFlow.useTrainingCard(card);
       
       // カレンダー進行完了を確認してから状態同期
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // アニメーション完了を待つため、より長い遅延を設定
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 状態同期を実行
       syncGameState();
       
-      setLastCardResult(result);
-      setShowCardResult(true);
-      
-      // 日付進行の確認
+      // 同期後の状態を再取得
       const stateAfter = gameFlow.getGameState();
       const newDate = gameFlow.getCurrentDay();
+      
+      // 結果モーダルを表示
+      setLastCardResult(result);
+      setShowCardResult(true);
       
       console.log('カード使用前の日付:', originalDate);
       console.log('カード使用後の日付:', newDate);
@@ -784,10 +790,11 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
           {activeTab === 'sugoroku' && (
             <div className="h-[800px]">
               <SugorokuTrainingBoard
-                currentPosition={gameState.dayCount}
+                currentPosition={gameState.calendarSystem.getCurrentState().currentDate.day}
                 availableCards={gameState.availableCards}
                 onCardUse={handleCardUse}
                 isLoading={isAdvancingDay}
+                allPlayers={gameState.allPlayers}
               />
             </div>
           )}

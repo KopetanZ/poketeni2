@@ -30,6 +30,7 @@ export function useGameData() {
   
   // 初期化完了フラグ（イベント重複発火防止用）
   const [gameDataInitialized, setGameDataInitialized] = useState(false);
+  const [initializationInProgress, setInitializationInProgress] = useState(false);
 
   // Supabaseの認証状態を確認
   useEffect(() => {
@@ -64,9 +65,19 @@ export function useGameData() {
       return;
     }
 
+    // 初期化中または既に初期化済みの場合はスキップ
+    if (initializationInProgress || gameDataInitialized) {
+      console.log('useGameData: 初期化をスキップ', { 
+        initializationInProgress, 
+        gameDataInitialized 
+      });
+      setLoading(false);
+      return;
+    }
+
     console.log('useGameData: Both local and Supabase users authenticated, starting initialization...');
     initializeGameData();
-  }, [localUser, supabaseUser]);
+  }, [localUser, supabaseUser]); // initializationInProgressを依存配列から削除
 
   // ゲームデータの初期化（カスタムスターター対応）
   const initializeGameData = async (customStarterData?: {
@@ -74,8 +85,23 @@ export function useGameData() {
     selectedStarter: string;
     managerName?: string;
   }) => {
-    if (!supabaseUser) return;
+    if (!supabaseUser) {
+      console.log('useGameData: Supabase user not available');
+      return;
+    }
     
+    if (initializationInProgress) {
+      console.log('useGameData: 初期化処理が既に進行中です');
+      return;
+    }
+    
+    if (gameDataInitialized) {
+      console.log('useGameData: 既に初期化済みです');
+      return;
+    }
+    
+    console.log('useGameData: 初期化処理を開始します');
+    setInitializationInProgress(true);
     setLoading(true);
     setError(null);
 
@@ -108,6 +134,7 @@ export function useGameData() {
         if (!hasExistingSchool && !hasSelectedStarter) {
           console.log('useGameData: First-time user without selected starter yet; deferring initialization until onboarding completes.');
           setLoading(false);
+          setInitializationInProgress(false);
           return;
         }
 
@@ -186,16 +213,21 @@ export function useGameData() {
       if (typeof window !== 'undefined' && !gameDataInitialized) {
         // 少し遅延を入れて、Reactの状態更新が完了してからイベントを発火
         setTimeout(() => {
-          // グローバルイベントとして発火（IntegratedGameInterfaceで受信）
-          window.dispatchEvent(new CustomEvent('gameDataInitialized', {
-            detail: {
-              currentDate,
-              schoolId: school.id,
-              isFirstTime: true
-            }
-          }));
-          setGameDataInitialized(true);
-          console.log('useGameData: gameDataInitializedイベントを発火しました:', currentDate);
+          // 重複チェックを再度実行
+          if (!gameDataInitialized) {
+            // グローバルイベントとして発火（IntegratedGameInterfaceで受信）
+            window.dispatchEvent(new CustomEvent('gameDataInitialized', {
+              detail: {
+                currentDate,
+                schoolId: school.id,
+                isFirstTime: true
+              }
+            }));
+            setGameDataInitialized(true);
+            console.log('useGameData: gameDataInitializedイベントを発火しました:', currentDate);
+          } else {
+            console.log('useGameData: イベント発火をスキップ（既に初期化済み）');
+          }
         }, 100);
       }
       
@@ -207,9 +239,13 @@ export function useGameData() {
         stack: (err as Error)?.stack
       });
       setError('ゲームデータの初期化に失敗しました: ' + (err as Error)?.message);
+      // エラー時はフラグをリセット
+      setGameDataInitialized(false);
     } finally {
       setLoading(false);
       console.log('useGameData: Set loading to false');
+      setInitializationInProgress(false);
+      console.log('useGameData: Set initializationInProgress to false');
     }
   };
 

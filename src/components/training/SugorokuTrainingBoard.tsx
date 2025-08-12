@@ -56,6 +56,152 @@ export default function SugorokuTrainingBoard({
   const [ballDirection, setBallDirection] = useState<'left' | 'right'>('right');
   const [managerImage, setManagerImage] = useState<string>('');
   const [managerTip, setManagerTip] = useState<string>('');
+  
+  // 手札の状態管理
+  const [handCards, setHandCards] = useState<TrainingCard[]>([]);
+  const [discardedCards, setDiscardedCards] = useState<TrainingCard[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [uniqueAvailableCards, setUniqueAvailableCards] = useState<TrainingCard[]>([]);
+
+  // availableCardsの重複を除去して管理用の配列を作成
+  useEffect(() => {
+    if (availableCards.length > 0) {
+      // 重複チェック：同じIDのカードを除去（データ整合性のため）
+      const uniqueCards = availableCards.filter((card, index, self) => 
+        index === self.findIndex(c => c.id === card.id)
+      );
+      
+      if (uniqueCards.length !== availableCards.length) {
+        console.warn('重複IDカードを検出:', {
+          original: availableCards.length,
+          unique: uniqueCards.length,
+          duplicates: availableCards.length - uniqueCards.length
+        });
+      }
+      
+      setUniqueAvailableCards(uniqueCards);
+    }
+  }, [availableCards]);
+
+  // 手札の初期化（1回だけ実行）
+  useEffect(() => {
+    if (!isInitialized && uniqueAvailableCards.length > 0) {
+      // 初期手札を配る（5枚まで）
+      const initialHand = uniqueAvailableCards.slice(0, 5);
+      setHandCards(initialHand);
+      setIsInitialized(true);
+      console.log('=== 手札初期化完了 ===', { 
+        availableCount: uniqueAvailableCards.length,
+        initialHandCount: initialHand.length,
+        cardCount: initialHand.length 
+      });
+    }
+  }, [uniqueAvailableCards, isInitialized]);
+
+  // availableCardsの変更を監視（デバッグ用）
+  useEffect(() => {
+    if (isInitialized) {
+      console.log('=== availableCards変更検知 ===', { 
+        newCount: availableCards.length, 
+        handCardsCount: handCards.length,
+        isInitialized 
+      });
+    }
+  }, [availableCards, isInitialized, handCards.length]);
+
+  // カードを補充する関数
+  const replenishCard = () => {
+    if (uniqueAvailableCards.length > 0) {
+      const targetHandSize = 5;
+      const currentHandSize = handCards.length;
+      
+      console.log('=== 補充処理開始 ===', { 
+        currentHandSize, 
+        targetHandSize,
+        availableCardsCount: uniqueAvailableCards.length,
+        handCardIds: handCards.map(c => c.id)
+      });
+      
+      // 手札に存在しないカードのみを対象とする
+      const availableForHand = uniqueAvailableCards.filter(card => 
+        !handCards.some(handCard => handCard.id === card.id)
+      );
+      
+      console.log('=== 補充可能カード ===', {
+        availableForHandCount: availableForHand.length,
+        availableForHandIds: availableForHand.map(c => c.id)
+      });
+      
+      if (availableForHand.length === 0) {
+        // 手札に追加できるカードがない場合の処理
+        console.warn('手札に追加できるカードがありません。手札管理を最適化します。');
+        
+        // 現在の手札から1枚をランダムに削除して、新しいカードを追加
+        if (handCards.length > 0) {
+          const randomRemoveIndex = Math.floor(Math.random() * handCards.length);
+          const removedCard = handCards[randomRemoveIndex];
+          
+          // 削除したカードを除いた手札を作成
+          const filteredHand = handCards.filter((_, index) => index !== randomRemoveIndex);
+          
+          // 削除したカードを除いて、新しいカードを選択
+          const newAvailableCards = uniqueAvailableCards.filter(card => 
+            card.id !== removedCard.id && !filteredHand.some(handCard => handCard.id === card.id)
+          );
+          
+          if (newAvailableCards.length > 0) {
+            const randomNewIndex = Math.floor(Math.random() * newAvailableCards.length);
+            const newCard = newAvailableCards[randomNewIndex];
+            
+            const updatedHand = [...filteredHand, newCard];
+            setHandCards(updatedHand);
+            
+            console.log('=== 手札最適化完了 ===', { 
+              removedCard: removedCard.name,
+              addedCard: newCard.name,
+              finalHandCount: updatedHand.length
+            });
+          } else {
+            // それでも新しいカードがない場合は、手札を維持
+            console.log('手札の最適化ができませんでした。現在の手札を維持します。');
+          }
+        }
+        return;
+      }
+      
+      // 毎回1枚補充（手札の枚数に関係なく）
+      const randomIndex = Math.floor(Math.random() * availableForHand.length);
+      const newCard = availableForHand[randomIndex];
+      
+      // 新しいカードを手札に追加
+      setHandCards(prev => {
+        const updated = [...prev, newCard];
+        console.log('=== カード補充完了 ===', { 
+          cardName: newCard.name,
+          cardId: newCard.id,
+          handCardsCount: prev.length,
+          totalHandCards: updated.length,
+          targetSize: targetHandSize
+        });
+        return updated;
+      });
+    }
+  };
+
+  // 手札が空になったら補充（バックアップ用）
+  useEffect(() => {
+    if (handCards.length === 0 && uniqueAvailableCards.length > 0) {
+      // 初期手札を配る（5枚まで）
+      const initialHand = uniqueAvailableCards.slice(0, 5);
+      setHandCards(initialHand);
+      setDiscardedCards([]);
+      console.log('=== 手札空補充（バックアップ） ===', { 
+        availableCount: uniqueAvailableCards.length,
+        initialHandCount: initialHand.length,
+        cardCount: initialHand.length
+      });
+    }
+  }, [handCards.length, uniqueAvailableCards]);
 
   // ポケモン画像の取得
   useEffect(() => {
@@ -75,6 +221,11 @@ export default function SugorokuTrainingBoard({
     };
     loadPokemonImages();
   }, [allPlayers]);
+
+  // currentPositionが変更された際の内部状態更新
+  useEffect(() => {
+    setCurrentAdvancingPosition(currentPosition);
+  }, [currentPosition]);
 
   // マネージャー画像とtipsの初期化（1回だけ実行）
   useEffect(() => {
@@ -107,8 +258,26 @@ export default function SugorokuTrainingBoard({
   const handleCardUse = async (cardId: string) => {
     if (!selectedCard || isLoading) return;
     
+    console.log('=== カード使用開始 ===', { 
+      cardId, 
+      cardName: selectedCard.name, 
+      handCardsBefore: handCards.length,
+      selectedCard 
+    });
+    
     setIsAdvancing(true);
     setAdvancementProgress(0);
+    
+    // 使用したカードを手札から削除
+    setHandCards(prev => {
+      const filtered = prev.filter(card => card.id !== cardId);
+      console.log('=== カード削除完了 ===', { 
+        removedCard: selectedCard.name, 
+        previousCount: prev.length, 
+        newCount: filtered.length 
+      });
+      return filtered;
+    });
     
     // カードの数字分だけ1マスずつ進むアニメーション
     const totalSteps = selectedCard.number;
@@ -123,15 +292,42 @@ export default function SugorokuTrainingBoard({
     }
     
     // アニメーション完了後、実際のカード使用処理を実行
-    onCardUse(cardId);
+    console.log('=== カード使用処理実行 ===', { cardId });
     
-    // 状態をリセット
-    setTimeout(() => {
-      setIsAdvancing(false);
-      setAdvancementProgress(0);
-      setCurrentAdvancingPosition(currentPosition);
-      setSelectedCard(null);
-    }, 500);
+    try {
+      // カード使用処理を実行
+      onCardUse(cardId);
+      
+      // 状態をリセット（ただし位置は維持）
+      setTimeout(() => {
+        setIsAdvancing(false);
+        setAdvancementProgress(0);
+        // currentAdvancingPositionは現在の位置を維持（リセットしない）
+        setSelectedCard(null);
+        
+        // カードを使用したら補充（少し遅延を入れて確実に実行）
+        console.log('=== カード補充開始 ===');
+        setTimeout(() => {
+          replenishCard();
+        }, 100);
+      }, 500);
+      
+    } catch (error) {
+      console.error('カード使用処理でエラーが発生しました:', error);
+      
+      // エラー時も状態をリセット
+      setTimeout(() => {
+        setIsAdvancing(false);
+        setAdvancementProgress(0);
+        setSelectedCard(null);
+        
+        // エラー時も補充を試行
+        console.log('=== エラー後のカード補充試行 ===');
+        setTimeout(() => {
+          replenishCard();
+        }, 100);
+      }, 500);
+    }
   };
 
   // カレンダー表示用の日数取得（peekDays相当）
@@ -139,6 +335,7 @@ export default function SugorokuTrainingBoard({
     const days: Array<{ day: number; type: string; event?: any }> = [];
     const basePosition = isAdvancing ? currentAdvancingPosition : currentPosition;
     
+    // 現在位置から14マス先まで表示
     for (let i = 0; i < 14; i++) {
       const dayNumber = basePosition + i;
       const squareType = getSquareType(dayNumber);
@@ -256,10 +453,13 @@ export default function SugorokuTrainingBoard({
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-600/50">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-white flex items-center">
-            🎲 練習すごろく ({availableCards.length}枚)
+            🎲 練習すごろく ({handCards.length}枚)
           </h2>
           <div className="text-slate-300">
             現在: {isAdvancing ? currentAdvancingPosition : currentPosition}日目
+            <span className="ml-2 text-xs text-slate-400">
+              (マス目: {getSquareType(isAdvancing ? currentAdvancingPosition : currentPosition)})
+            </span>
           </div>
         </div>
 
@@ -444,7 +644,7 @@ export default function SugorokuTrainingBoard({
 
         {/* カード一覧 */}
         <div className="flex gap-4 overflow-x-auto pb-2">
-          {availableCards.map((card) => {
+          {handCards.map((card) => {
             const isSelected = selectedCard?.id === card.id;
             const rarityColors = {
               common: 'from-gray-400 to-gray-500',

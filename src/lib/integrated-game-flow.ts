@@ -405,11 +405,9 @@ export class IntegratedGameFlow {
       c => c.id !== card.id
     );
 
-    // カード補充処理（学校評判による調整）
-    // 手札が少なくなった場合のみ補充
-    if (this.gameState.availableCards.length < 3) {
-      this.replenishCardsAfterUsage();
-    }
+    // カード補充処理（毎回1枚補充）
+    // 使用したカードを補充して手札数を維持
+    this.replenishCardsAfterUsage();
 
     return {
       ...result,
@@ -422,36 +420,29 @@ export class IntegratedGameFlow {
   // カード使用後の補充処理
   private replenishCardsAfterUsage(): void {
     console.log('=== 手札補充処理開始 ===');
-    const targetCardCount = this.calculateDailyCardCount();
-    const currentCount = this.gameState.availableCards.length;
     
-    console.log('目標カード数:', targetCardCount);
-    console.log('現在のカード数:', currentCount);
+    // 毎回1枚だけ補充（使用したカードの補充）
+    const cardsNeeded = 1;
+    console.log('補充するカード数:', cardsNeeded);
     
-    if (currentCount < targetCardCount) {
-      const cardsNeeded = targetCardCount - currentCount;
-      console.log('補充が必要なカード数:', cardsNeeded);
-      
-      const newCards = TrainingCardSystem.generateCardDrop(
-        this.gameState.schoolStats.reputation,
-        this.gameState.player.level || 1,
-        cardsNeeded,
-        'daily_practice'
-      );
-      
-      console.log('生成されたカード:', newCards.cards);
-      
-      this.gameState.availableCards.push(...newCards.cards);
-      
-      // レジェンドカードの統計更新
-      const legendaryCards = newCards.cards.filter(card => card.rarity === 'legendary');
-      this.gameState.stats.legendaryCardsObtained += legendaryCards.length;
-      
-      console.log('補充後のカード数:', this.gameState.availableCards.length);
-    } else {
-      console.log('カード補充は不要です');
-    }
+    // 使用したカードのみを補充（既存カードは保持）
+    const newCards = TrainingCardSystem.generateCardDrop(
+      this.gameState.schoolStats.reputation,
+      this.gameState.player.level || 1,
+      cardsNeeded,
+      'daily_practice'
+    );
     
+    console.log('生成されたカード:', newCards.cards);
+    
+    // 新しいカードを既存のカードに追加（置き換えではない）
+    this.gameState.availableCards.push(...newCards.cards);
+    
+    // レジェンドカードの統計更新
+    const legendaryCards = newCards.cards.filter(card => card.rarity === 'legendary');
+    this.gameState.stats.legendaryCardsObtained += legendaryCards.length;
+    
+    console.log('補充後のカード数:', this.gameState.availableCards.length);
     console.log('=== 手札補充処理終了 ===');
   }
 
