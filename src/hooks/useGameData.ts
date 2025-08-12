@@ -159,6 +159,19 @@ export function useGameData() {
         players,
         currentDate
       });
+      
+      // カレンダーシステムの状態を正しく初期化するためのコールバックを提供
+      // これにより、IntegratedGameInterfaceでカレンダーの状態を復元できる
+      if (typeof window !== 'undefined') {
+        // グローバルイベントとして発火（IntegratedGameInterfaceで受信）
+        window.dispatchEvent(new CustomEvent('gameDataInitialized', {
+          detail: {
+            currentDate,
+            schoolId: school.id
+          }
+        }));
+      }
+      
       console.log('useGameData: Game data initialization completed successfully');
     } catch (err) {
       console.error('useGameData: Game data initialization error:', err);

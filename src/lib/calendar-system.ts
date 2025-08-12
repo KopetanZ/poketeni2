@@ -610,6 +610,26 @@ export class CalendarSystem {
     return this.currentState;
   }
 
+  // 現在の日付を設定（外部からの状態復元用）
+  public setCurrentDate(year: number, month: MonthType, day: number): void {
+    // 週と曜日を再計算
+    const date = new Date(2024, month - 1, day);
+    const dayOfWeek = date.getDay();
+    const week = Math.ceil(day / 7) as WeekType;
+    
+    // 新しい日付を生成
+    const newDate = this.generateDay(year, month, week, day);
+    
+    // 状態を更新
+    this.currentState.currentDate = newDate;
+    this.currentState.currentYear = year;
+    
+    // 学期判定更新
+    this.currentState.currentSemester = month <= 9 ? 1 : 2;
+    
+    console.log('CalendarSystem: 日付を設定しました:', { year, month, day, week, dayOfWeek });
+  }
+
   // 先読み: 現在日付から count 日分の CalendarDay を返す（状態は進めない）
   public peekDays(count: number): CalendarDay[] {
     const days: CalendarDay[] = [];

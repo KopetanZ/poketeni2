@@ -99,6 +99,17 @@ export class IntegratedGameFlow {
     this.initializeDailyFlow();
   }
 
+  // データベースから読み取った日付でカレンダーシステムを初期化
+  public initializeCalendarWithDate(year: number, month: number, day: number): void {
+    if (this.gameState.calendarSystem) {
+      // MonthTypeの型制約に合わせて型キャスト
+      const monthType = month as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+      this.gameState.calendarSystem.setCurrentDate(year, monthType, day);
+      this.gameState.currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
+      console.log('IntegratedGameFlow: カレンダーを日付で初期化しました:', { year, month, day });
+    }
+  }
+
   // 初期化処理
   private initializeDailyFlow(): void {
     this.generateInitialCards();
