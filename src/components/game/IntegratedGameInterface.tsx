@@ -85,6 +85,9 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [evolutionTarget, setEvolutionTarget] = useState<Player | null>(null);
   const promptedEvolutionIdsRef = useRef<Set<string>>(new Set());
 
+  // 前回永続化した日付を追跡（無限ループ防止用）
+  const lastPersistedDateRef = useRef<{ year: number; month: number; day: number } | null>(null);
+
   // Supabase接続状態を確認するヘルパー関数
   const checkSupabaseConnection = async (): Promise<boolean> => {
     try {
@@ -116,39 +119,56 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       console.log('カレンダー状態同期:', calendarState.currentDate);
       
       // カレンダー状態をデータベースに永続化（エラーが発生してもゲーム進行を妨げない）
+      // 無限ループを防ぐため、前回と異なる日付の場合のみ永続化
       if (schoolId && calendarState.currentDate) {
-        // 非同期処理を分離し、エラーが発生してもゲーム進行を妨げない
-        const persistCalendarState = async () => {
-          try {
-            // まず接続状態を確認
-            const isConnected = await checkSupabaseConnection();
-            if (!isConnected) {
-              console.warn('Supabase接続が利用できないため、カレンダー状態の永続化をスキップします');
-              return;
-            }
-            
-            const { error } = await supabase
-              .from('schools')
-              .update({
-                current_year: calendarState.currentDate.year,
-                current_month: calendarState.currentDate.month,
-                current_day: calendarState.currentDate.day
-              })
-              .eq('id', schoolId);
-            
-            if (error) {
-              console.error('カレンダー状態の永続化でエラーが発生:', error);
-            } else {
-              console.log('カレンダー状態をデータベースに永続化しました:', calendarState.currentDate);
-            }
-          } catch (e) {
-            console.error('カレンダー状態の永続化に失敗:', e);
-            // エラーが発生してもゲーム進行を妨げない
-          }
+        // 前回の永続化状態を追跡
+        const currentDate = {
+          year: calendarState.currentDate.year,
+          month: calendarState.currentDate.month,
+          day: calendarState.currentDate.day
         };
         
-        // バックグラウンドで実行
-        persistCalendarState();
+        // 前回と異なる日付の場合のみ永続化
+        if (!lastPersistedDateRef.current || 
+            lastPersistedDateRef.current.year !== currentDate.year ||
+            lastPersistedDateRef.current.month !== currentDate.month ||
+            lastPersistedDateRef.current.day !== currentDate.day) {
+          
+          // 非同期処理を分離し、エラーが発生してもゲーム進行を妨げない
+          const persistCalendarState = async () => {
+            try {
+              // まず接続状態を確認
+              const isConnected = await checkSupabaseConnection();
+              if (!isConnected) {
+                console.warn('Supabase接続が利用できないため、カレンダー状態の永続化をスキップします');
+                return;
+              }
+              
+              const { error } = await supabase
+                .from('schools')
+                .update({
+                  current_year: calendarState.currentDate.year,
+                  current_month: calendarState.currentDate.month,
+                  current_day: calendarState.currentDate.day
+                })
+                .eq('id', schoolId);
+              
+              if (error) {
+                console.error('カレンダー状態の永続化でエラーが発生:', error);
+              } else {
+                console.log('カレンダー状態をデータベースに永続化しました:', calendarState.currentDate);
+                // 永続化成功時に前回の状態を更新
+                lastPersistedDateRef.current = currentDate;
+              }
+            } catch (e) {
+              console.error('カレンダー状態の永続化に失敗:', e);
+              // エラーが発生してもゲーム進行を妨げない
+            }
+          };
+          
+          // バックグラウンドで実行
+          persistCalendarState();
+        }
       }
     }
   };
@@ -168,7 +188,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     if (allPlayers && allPlayers.length > 0) {
       gameFlow.updateAllPlayers(allPlayers);
       
-      // ゲーム状態からカレンダーシステムの状態を復元
+      // ゲーム状態からカレンダーシステムの状態を復元（初回のみ）
       if (gameState?.currentDay) {
         console.log('ゲーム状態からカレンダー状態を復元:', gameState.currentDay);
         // カレンダーシステムの状態を復元（実装予定）
@@ -183,7 +203,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         details: '栄冠ナイン風テニス部シミュレーターを開始しました'
       });
     }
-  }, [allPlayers, gameFlow, gameState]);
+  }, [allPlayers, gameFlow]); // gameStateを依存関係から削除
 
   // 日付進行処理
   const handleAdvanceDay = async () => {
