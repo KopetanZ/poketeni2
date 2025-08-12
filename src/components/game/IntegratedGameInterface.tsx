@@ -530,65 +530,72 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-      {/* ヘッダー情報 */}
-      <div className="bg-white border-b shadow-sm p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">
-              PokeTeaniMaster - 栄冠ナイン風統合システム
-            </h1>
-            <p className="text-gray-600">
-              {gameState.player.pokemon_name} | Day {gameState.dayCount} | Week {gameState.weekCount}
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            {/* ゲーム統計 */}
-            <div className="grid grid-cols-4 gap-4 text-center">
-              <div>
-                <div className="text-lg font-bold text-blue-600">Lv.{gameState.player.level || 1}</div>
-                <div className="text-xs text-gray-500">レベル</div>
-              </div>
-              <div>
-                <div className="text-lg font-bold text-green-600">{gameState.player.stamina || 0}</div>
-                <div className="text-xs text-gray-500">体力</div>
-              </div>
-              <div>
-                <div className="text-lg font-bold text-purple-600">¥{gameState.schoolStats.funds.toLocaleString()}</div>
-                <div className="text-xs text-gray-500">資金</div>
-              </div>
-              <div>
-                <div className="text-lg font-bold text-orange-600">{gameState.schoolStats.reputation}</div>
-                <div className="text-xs text-gray-500">評判</div>
-              </div>
+      {/* 固定ヘッダー情報 */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b shadow-lg">
+        <div className="max-w-7xl mx-auto p-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">
+                PokeTeniMaster みどり学園
+              </h1>
+              <p className="text-gray-600">
+                {gameState.player.pokemon_name} | Day {gameState.currentDay?.day || gameState.dayCount} | Week {gameState.currentDay?.week || gameState.weekCount}
+              </p>
             </div>
             
-            {/* 日付進行ボタン */}
-            {/* カード使用で自動進行するため、手動の次の日ボタンは非表示 */}
+            <div className="flex items-center gap-6">
+              {/* ゲーム統計 */}
+              <div className="grid grid-cols-4 gap-4 text-center">
+                <div>
+                  <div className="text-lg font-bold text-blue-600">Lv.{gameState.player.level || 1}</div>
+                  <div className="text-xs text-gray-500">レベル</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-green-600">{gameState.player.stamina || 0}</div>
+                  <div className="text-xs text-gray-500">体力</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-purple-600">¥{gameState.schoolStats.funds.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500">資金</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-orange-600">{gameState.schoolStats.reputation}</div>
+                  <div className="text-xs text-gray-500">評判</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 通知バー */}
+      {/* ヘッダーの高さ分のマージン */}
+      <div className="h-24"></div>
+
+      {/* 固定通知バー */}
       {notifications.length > 0 && (
-        <div className="bg-yellow-50 border-b border-yellow-200 p-2">
-          <div className="max-w-7xl mx-auto flex items-center gap-4 overflow-x-auto">
-            {notifications.map((notification, index) => (
-              <Badge key={index} variant="outline" className="whitespace-nowrap">
-                {notification}
-              </Badge>
-            ))}
-            <Button
-              onClick={() => setNotifications([])}
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-            >
-              クリア
-            </Button>
+        <div className="fixed top-24 left-0 right-0 z-40 bg-yellow-50 border-b border-yellow-200">
+          <div className="max-w-7xl mx-auto p-2">
+            <div className="flex items-center gap-4 overflow-x-auto">
+              {notifications.map((notification, index) => (
+                <Badge key={index} variant="outline" className="whitespace-nowrap">
+                  {notification}
+                </Badge>
+              ))}
+              <Button
+                onClick={() => setNotifications([])}
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+              >
+                クリア
+              </Button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* 通知バーの高さ分のマージン（通知がある場合のみ） */}
+      {notifications.length > 0 && <div className="h-16"></div>}
 
       {/* メインコンテンツ */}
       <div className="max-w-7xl mx-auto p-4">
