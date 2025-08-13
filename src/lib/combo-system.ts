@@ -260,9 +260,9 @@ export class ComboEffectSystem {
       baseRate += levelBonus;
     }
     
-    // カードの質による補正
-    const highRarityCards = handCards.filter(card => 
-      card.rarity === 'epic' || card.rarity === 'legendary'
+        // カードの質による補正
+    const highRarityCards = handCards.filter(card =>
+      card.rarity === 'rare' || card.rarity === 'legendary'
     );
     baseRate += highRarityCards.length * 10;
     
@@ -308,7 +308,7 @@ export class ComboHistoryManager {
 
   // 特定のコンボの使用回数を取得
   getComboUsageCount(comboId: string): number {
-    return this.comboHistory.filter(record => record.recordId === comboId).length;
+    return this.comboHistory.filter(record => record.comboId === comboId).length;
   }
 
   // 成功したコンボの履歴を取得

@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { TrainingCard } from '@/types/training-cards';
 import { Player } from '@/types/game';
-import { EnhancedCardInterface } from '@/components/cards/EnhancedCardInterface';
-import { ComboIndicator } from '@/components/cards/ComboIndicator';
+import EnhancedCardInterface from '@/components/cards/EnhancedCardInterface';
+import ComboIndicator from '@/components/cards/ComboIndicator';
 import { HandStateManager, CardRetentionSystem, calculateHandSize } from '@/lib/enhanced-hand-management';
 import { ComboDetectionSystem, ComboEffectSystem, ComboHistoryManager } from '@/lib/combo-system';
 import { DeckBuilderSystem, DeckStorageSystem } from '@/lib/deck-builder';
@@ -214,7 +214,7 @@ export default function EnhancedSugorokuBoard({
             <div>
               <h5 className="font-semibold text-white mb-2">カテゴリボーナス</h5>
               <div className="space-y-1 text-sm">
-                {Object.entries(currentDeck.deckEffects.categoryBonus).map(([category, bonus]) => (
+                {Object.entries(currentDeck.deckEffects.categoryBonus as Record<string, number>).map(([category, bonus]) => (
                   <div key={category} className="flex justify-between">
                     <span className="text-slate-400">{category}:</span>
                     <span className="text-green-400">x{bonus}</span>

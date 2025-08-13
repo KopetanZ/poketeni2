@@ -148,8 +148,7 @@ export class HandOptimizationSystem {
   } {
     return {
       physicalCards: hand.filter(card => 
-        card.baseEffects.skillGrowth?.stamina || 
-        card.baseEffects.skillGrowth?.strength
+        card.baseEffects.skillGrowth?.stamina
       ).length,
       mentalCards: hand.filter(card => 
         card.baseEffects.skillGrowth?.mental
@@ -159,10 +158,10 @@ export class HandOptimizationSystem {
         card.baseEffects.skillGrowth?.return_skill
       ).length,
       tacticalCards: hand.filter(card => 
-        card.baseEffects.skillGrowth?.strategy
+        card.baseEffects.skillGrowth?.mental
       ).length,
       specialCards: hand.filter(card => 
-        card.rarity === 'epic' || card.rarity === 'legendary'
+        card.rarity === 'rare' || card.rarity === 'legendary'
       ).length
     };
   }

@@ -482,6 +482,10 @@ export default function Home() {
       {showEquipment && selectedPlayer && (
         <EquipmentManager 
           player={selectedPlayer}
+          onPlayerUpdate={(updatedPlayer: Player) => {
+            console.log('Player updated:', updatedPlayer);
+            // ここで実際のプレイヤー更新処理を実装
+          }}
           onClose={() => {
             setShowEquipment(false);
             setSelectedPlayer(null);

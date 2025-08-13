@@ -241,6 +241,26 @@ export class PlayerGenerator {
       // 特殊能力（レベルと基本能力に応じて生成）
       special_abilities: [],
 
+      // ステータスゲージシステム初期化
+      stat_gages: {
+        serve_skill_gage: 0,
+        return_skill_gage: 0,
+        volley_skill_gage: 0,
+        stroke_skill_gage: 0,
+        mental_gage: 0,
+        stamina_gage: 0
+      },
+      
+      // 成長効率係数初期化
+      growth_efficiency: {
+        serve_skill_efficiency: 1.0,
+        return_skill_efficiency: 1.0,
+        volley_skill_efficiency: 1.0,
+        stroke_skill_efficiency: 1.0,
+        mental_efficiency: 1.0,
+        stamina_efficiency: 1.0
+      },
+      
       // 新規追加必須フィールド（デフォルト初期化）
       enrollmentYear: new Date().getFullYear(),
       personality: 'hardworker',
@@ -310,6 +330,26 @@ export class PlayerGenerator {
       
       // ポケモン固有
       types: pokemon.types || ['normal'],
+      
+      // ステータスゲージシステム初期化
+      stat_gages: {
+        serve_skill_gage: 0,
+        return_skill_gage: 0,
+        volley_skill_gage: 0,
+        stroke_skill_gage: 0,
+        mental_gage: 0,
+        stamina_gage: 0
+      },
+      
+      // 成長効率係数初期化
+      growth_efficiency: {
+        serve_skill_efficiency: 1.0,
+        return_skill_efficiency: 1.0,
+        volley_skill_efficiency: 1.0,
+        stroke_skill_efficiency: 1.0,
+        mental_efficiency: 1.0,
+        stamina_efficiency: 1.0
+      },
       
       // 新しい個体値システム
       pokemon_stats: pokemonStats,
@@ -383,6 +423,26 @@ export class PlayerGenerator {
       types: ['normal'],
       
       special_abilities: [],
+
+      // ステータスゲージシステム初期化
+      stat_gages: {
+        serve_skill_gage: 0,
+        return_skill_gage: 0,
+        volley_skill_gage: 0,
+        stroke_skill_gage: 0,
+        mental_gage: 0,
+        stamina_gage: 0
+      },
+      
+      // 成長効率係数初期化
+      growth_efficiency: {
+        serve_skill_efficiency: 1.0,
+        return_skill_efficiency: 1.0,
+        volley_skill_efficiency: 1.0,
+        stroke_skill_efficiency: 1.0,
+        mental_efficiency: 1.0,
+        stamina_efficiency: 1.0
+      },
 
       // 新規追加必須フィールド
       enrollmentYear: new Date().getFullYear(),
@@ -643,6 +703,26 @@ export class PlayerGenerator {
       // ポケモン固有
       types: ['normal'], // デフォルト、実際には種族データから取得すべき
 
+      // ステータスゲージシステム初期化
+      stat_gages: {
+        serve_skill_gage: 0,
+        return_skill_gage: 0,
+        volley_skill_gage: 0,
+        stroke_skill_gage: 0,
+        mental_gage: 0,
+        stamina_gage: 0
+      },
+      
+      // 成長効率係数初期化
+      growth_efficiency: {
+        serve_skill_efficiency: 1.0,
+        return_skill_efficiency: 1.0,
+        volley_skill_efficiency: 1.0,
+        stroke_skill_efficiency: 1.0,
+        mental_efficiency: 1.0,
+        stamina_efficiency: 1.0
+      },
+      
       // 個体値システム
       pokemon_stats: pokemonStats,
 
@@ -757,13 +837,33 @@ export class PlayerGenerator {
         types: ['normal'],
         special_abilities: [],
 
+        // ステータスゲージシステム初期化
+        stat_gages: {
+          serve_skill_gage: 0,
+          return_skill_gage: 0,
+          volley_skill_gage: 0,
+          stroke_skill_gage: 0,
+          mental_gage: 0,
+          stamina_gage: 0
+        },
+        
+        // 成長効率係数初期化
+        growth_efficiency: {
+          serve_skill_efficiency: 1.0,
+          return_skill_efficiency: 1.0,
+          volley_skill_efficiency: 1.0,
+          stroke_skill_efficiency: 1.0,
+          mental_efficiency: 1.0,
+          stamina_efficiency: 1.0
+        },
+
         // 新規追加必須フィールド
         enrollmentYear: new Date().getFullYear(),
         personality: 'hardworker',
         initialStats: {
           serve_skill: balancedStats.serve_skill,
           return_skill: balancedStats.return_skill,
-          volley_skill: balancedStats.volley_skill,
+          volley_skill: balancedStats.return_skill,
           stroke_skill: balancedStats.stroke_skill,
           mental: balancedStats.mental,
           stamina: balancedStats.stamina,

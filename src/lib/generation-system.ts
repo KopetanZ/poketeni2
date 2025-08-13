@@ -369,6 +369,26 @@ export class GenerationSystem {
         average
       },
       
+      // ステータスゲージシステム初期化
+      stat_gages: {
+        serve_skill_gage: 0,
+        return_skill_gage: 0,
+        volley_skill_gage: 0,
+        stroke_skill_gage: 0,
+        mental_gage: 0,
+        stamina_gage: 0
+      },
+      
+      // 成長効率係数初期化
+      growth_efficiency: {
+        serve_skill_efficiency: 1.0,
+        return_skill_efficiency: 1.0,
+        volley_skill_efficiency: 1.0,
+        stroke_skill_efficiency: 1.0,
+        mental_efficiency: 1.0,
+        stamina_efficiency: 1.0
+      },
+      
       // 覚醒システム初期化
       awakening: {
         isEligible: average <= 40, // 平均40以下なら覚醒対象

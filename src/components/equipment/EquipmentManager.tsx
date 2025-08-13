@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Player } from '@/types/game';
+import { PlayerEquipment } from '@/types/items';
 import { GameBalanceManager } from '@/lib/game-balance-manager';
 import { supabase } from '@/lib/supabase';
 import { Building2, Sword, Shirt, Zap, Heart, Brain } from 'lucide-react';
@@ -10,6 +11,7 @@ interface EquipmentManagerProps {
   player: Player;
   onPlayerUpdate: (player: Player) => void;
   onClose: () => void;
+  onEquipmentChange: (playerId: string, equipment: PlayerEquipment) => void;
 }
 
 interface Equipment {

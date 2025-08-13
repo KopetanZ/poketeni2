@@ -43,7 +43,6 @@ export const DECK_TEMPLATES: CustomDeck[] = [
         common: 40,
         uncommon: 35,
         rare: 20,
-        epic: 5,
         legendary: 0
       },
       excludedCards: []
@@ -77,7 +76,6 @@ export const DECK_TEMPLATES: CustomDeck[] = [
         common: 20,
         uncommon: 30,
         rare: 35,
-        epic: 10,
         legendary: 5
       },
       excludedCards: ['meditation_focus']
@@ -111,7 +109,6 @@ export const DECK_TEMPLATES: CustomDeck[] = [
         common: 15,
         uncommon: 25,
         rare: 40,
-        epic: 15,
         legendary: 5
       },
       excludedCards: ['intensive_physical']
@@ -175,7 +172,7 @@ export class DeckBuilderSystem {
       const categoryCards = currentHand.filter(card => 
         card.category === category || 
         (category === 'technical' && (card.baseEffects.skillGrowth?.serve_skill || card.baseEffects.skillGrowth?.return_skill)) ||
-        (category === 'physical' && (card.baseEffects.skillGrowth?.stamina || card.baseEffects.skillGrowth?.strength)) ||
+        (category === 'physical' && card.baseEffects.skillGrowth?.stamina) ||
         (category === 'mental' && card.baseEffects.skillGrowth?.mental)
       );
       
@@ -233,7 +230,6 @@ export class DeckBuilderSystem {
       common: 0,
       uncommon: 0,
       rare: 0,
-      epic: 0,
       legendary: 0
     };
     

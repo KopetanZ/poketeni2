@@ -218,17 +218,17 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
   const getTargetSkillsForTraining = (trainingType: string): Array<keyof Player['stat_gages']> => {
     switch (trainingType) {
       case 'basic':
-        return ['serve_skill', 'return_skill', 'stroke_skill', 'volley_skill', 'mental', 'stamina'];
+        return ['serve_skill_gage', 'return_skill_gage', 'stroke_skill_gage', 'volley_skill_gage', 'mental_gage', 'stamina_gage'];
       case 'technical':
-        return ['stroke_skill', 'volley_skill'];
+        return ['stroke_skill_gage', 'volley_skill_gage'];
       case 'mental':
-        return ['mental'];
+        return ['mental_gage'];
       case 'stamina':
-        return ['stamina'];
+        return ['stamina_gage'];
       case 'special':
-        return ['serve_skill', 'return_skill', 'stroke_skill', 'volley_skill', 'mental', 'stamina'];
+        return ['serve_skill_gage', 'return_skill_gage', 'stroke_skill_gage', 'volley_skill_gage', 'mental_gage', 'stamina_gage'];
       default:
-        return ['serve_skill', 'return_skill', 'stroke_skill', 'volley_skill', 'mental', 'stamina'];
+        return ['serve_skill_gage', 'return_skill_gage', 'stroke_skill_gage', 'volley_skill_gage', 'mental_gage', 'stamina_gage'];
     }
   };
 
