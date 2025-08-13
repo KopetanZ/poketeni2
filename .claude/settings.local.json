@@ -20,7 +20,8 @@
       "WebFetch(domain:appmedia.jp)",
       "Bash(npx eslint:*)",
       "Bash(mkdir:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }
