@@ -755,3 +755,357 @@ console.log('=== データベース更新 ===', { result });
 **調査担当者**: AI Assistant  
 **調査状況**: 計画段階  
 **次回更新予定**: 調査完了後  
+
+---
+
+## 🏫 ライバル校システム拡張TODO
+
+### 📋 拡張の概要
+**目的**: 既存のライバル校システムを大幅に拡張し、日本全国47都道府県のライバル校エコシステムを構築
+**完了済み**: 基本システム（型定義、地域特性、学校生成、管理、UI）
+**次フェーズ**: データベース統合、対戦システム連携、大会システム実装
+
+### 🔧 フェーズ1: データベース統合（重要度：高）
+
+#### 1.1 Supabaseテーブル設計と実装
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] `rival_schools`テーブルの作成（学校基本情報）
+- [ ] `regional_characteristics`テーブルの作成（地域特性）
+- [ ] `school_growth_history`テーブルの作成（成長履歴）
+- [ ] `rivalry_connections`テーブルの作成（ライバル関係）
+- [ ] `school_achievements`テーブルの作成（実績・記録）
+
+**実装内容**:
+```sql
+-- rival_schoolsテーブル
+CREATE TABLE rival_schools (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  prefecture VARCHAR(50) NOT NULL,
+  region VARCHAR(50) NOT NULL,
+  school_type VARCHAR(50) NOT NULL,
+  school_rank VARCHAR(10) NOT NULL,
+  rating INTEGER NOT NULL DEFAULT 1000,
+  level INTEGER NOT NULL DEFAULT 1,
+  philosophy TEXT,
+  specialties TEXT[],
+  weaknesses TEXT[],
+  tactics_profile JSONB,
+  team_composition JSONB,
+  ace_pokemon JSONB,
+  current_form VARCHAR(50),
+  growth_trajectory VARCHAR(50),
+  injury_situation JSONB,
+  regional_modifiers JSONB,
+  culture_modifiers JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- regional_characteristicsテーブル
+CREATE TABLE regional_characteristics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  prefecture VARCHAR(50) UNIQUE NOT NULL,
+  region VARCHAR(50) NOT NULL,
+  climate_data JSONB,
+  culture_data JSONB,
+  infrastructure_data JSONB,
+  signature_pokemon JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### 1.2 データ移行と初期化
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] 既存の`REGIONAL_DATA`からデータベースへの移行スクリプト
+- [ ] ライバル校の一括生成とデータベース保存
+- [ ] 初期データの整合性チェック
+
+**実装内容**:
+```typescript
+// データ移行スクリプト
+export async function migrateRegionalData() {
+  for (const [prefecture, data] of Object.entries(REGIONAL_DATA)) {
+    await supabase.from('regional_characteristics').upsert({
+      prefecture,
+      region: data.region,
+      climate_data: data.climate,
+      culture_data: data.culture,
+      infrastructure_data: data.infrastructure,
+      signature_pokemon: data.signaturePokemon
+    });
+  }
+}
+
+// ライバル校一括生成
+export async function generateAndSaveAllSchools() {
+  const generator = new RivalSchoolGenerator();
+  const allSchools = generator.generateAllRivalSchools();
+  
+  for (const school of allSchools) {
+    await supabase.from('rival_schools').insert({
+      name: school.name,
+      prefecture: school.prefecture,
+      region: school.region,
+      school_type: school.schoolType,
+      school_rank: school.schoolRank,
+      rating: school.rating,
+      level: school.level,
+      philosophy: school.philosophy,
+      specialties: school.specialties,
+      weaknesses: school.weaknesses,
+      tactics_profile: school.tactics,
+      team_composition: school.teamComposition,
+      ace_pokemon: school.acePokemon,
+      current_form: school.currentForm,
+      growth_trajectory: school.growthTrajectory,
+      injury_situation: school.injurySituation,
+      regional_modifiers: school.regionalModifiers,
+      culture_modifiers: school.cultureModifiers
+    });
+  }
+}
+```
+
+### 🎮 フェーズ2: 対戦システム統合（重要度：高）
+
+#### 2.1 既存マッチエンジンとの連携
+**対象ファイル**: 
+- `src/lib/match-engine.ts`
+- `src/lib/advanced-match-engine.ts`
+- `src/components/match/AdvancedMatchViewer.tsx`
+
+**タスク**:
+- [ ] ライバル校AIの対戦ロジック統合
+- [ ] 戦術適応システムの実装
+- [ ] プレイヤーパターン学習機能の追加
+
+**実装内容**:
+```typescript
+// ライバル校AI対戦ロジック
+export class RivalSchoolAI {
+  constructor(private school: RivalSchool) {}
+  
+  async selectMove(context: MatchContext): Promise<TacticalAdjustment> {
+    // プレイヤーの戦術パターンを分析
+    const playerPattern = this.analyzePlayerPattern(context);
+    
+    // 学校の戦術プロファイルに基づいて行動決定
+    const adjustment = this.determineTacticalAdjustment(playerPattern);
+    
+    // 学習データを更新
+    await this.updateLearningData(context, adjustment);
+    
+    return adjustment;
+  }
+  
+  private analyzePlayerPattern(context: MatchContext): PlayerPattern {
+    // プレイヤーの過去の行動パターンを分析
+    // 戦術の傾向、弱点、好みの戦法などを特定
+  }
+  
+  private determineTacticalAdjustment(pattern: PlayerPattern): TacticalAdjustment {
+    // 分析結果に基づいて最適な戦術調整を決定
+    // 学校の特性と戦術プロファイルを考慮
+  }
+}
+```
+
+#### 2.2 戦術適応システム
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] プレイヤー戦術パターンの分析
+- [ ] ライバル校の戦術調整ロジック
+- [ ] 学習データの蓄積と活用
+
+### 🏆 フェーズ3: 大会システム実装（重要度：中）
+
+#### 3.1 階層制大会システム
+**対象ファイル**: 
+- `src/components/tournament/TournamentSystem.tsx`
+- `src/lib/tournament-system.ts`
+
+**タスク**:
+- [ ] 地区大会（District）の実装
+- [ ] 都道府県大会（Prefectural）の実装
+- [ ] 地域大会（Regional）の実装
+- [ ] 全国大会（National）の実装
+- [ ] 国際大会（International）の実装
+
+**実装内容**:
+```typescript
+// 階層制大会システム
+export class HierarchicalTournamentSystem {
+  async createTournament(
+    level: TournamentLevel,
+    region: string,
+    participants: RivalSchool[]
+  ): Promise<Tournament> {
+    const tournament = {
+      id: generateId(),
+      level,
+      region,
+      participants,
+      matches: [],
+      status: 'registration',
+      startDate: new Date(),
+      endDate: this.calculateEndDate(level),
+      rewards: this.determineRewards(level)
+    };
+    
+    return tournament;
+  }
+  
+  private calculateEndDate(level: TournamentLevel): Date {
+    const durationMap = {
+      'district': 7,      // 1週間
+      'prefectural': 14,  // 2週間
+      'regional': 21,     // 3週間
+      'national': 30,     // 1ヶ月
+      'international': 45 // 1.5ヶ月
+    };
+    
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + durationMap[level]);
+    return endDate;
+  }
+}
+```
+
+#### 3.2 大会参加条件と報酬システム
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] 各大会レベルの参加条件定義
+- [ ] 報酬システムの実装
+- [ ] ランキングシステムの実装
+
+### 🗺️ フェーズ4: 地域マップシステム（重要度：中）
+
+#### 4.1 日本地図表示
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] 日本地図コンポーネントの作成
+- [ ] 都道府県別ライバル校表示
+- [ ] 地域特性の可視化
+
+**実装内容**:
+```typescript
+// 日本地図コンポーネント
+export const JapanMap: React.FC<{
+  rivalSchools: RivalSchool[];
+  onPrefectureClick: (prefecture: string) => void;
+}> = ({ rivalSchools, onPrefectureClick }) => {
+  const prefectureData = useMemo(() => {
+    return rivalSchools.reduce((acc, school) => {
+      if (!acc[school.prefecture]) {
+        acc[school.prefecture] = [];
+      }
+      acc[school.prefecture].push(school);
+      return acc;
+    }, {} as Record<string, RivalSchool[]>);
+  }, [rivalSchools]);
+  
+  return (
+    <div className="japan-map">
+      {/* SVG地図とインタラクティブな都道府県 */}
+      {Object.entries(prefectureData).map(([prefecture, schools]) => (
+        <PrefectureRegion
+          key={prefecture}
+          prefecture={prefecture}
+          schools={schools}
+          onClick={() => onPrefectureClick(prefecture)}
+        />
+      ))}
+    </div>
+  );
+};
+```
+
+#### 4.2 地域別統計と分析
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] 地域別ライバル校統計
+- [ ] 地域特性の影響分析
+- [ ] 地域間比較機能
+
+### 🤖 フェーズ5: AI適応システム（重要度：低）
+
+#### 5.1 プレイヤー学習型AI
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] プレイヤー行動パターンの機械学習
+- [ ] 戦術最適化アルゴリズム
+- [ ] 難易度調整システム
+
+#### 5.2 動的成長システム
+**対象ファイル**: 新規作成
+**タスク**:
+- [ ] 季節変動による成長調整
+- [ ] 対戦結果による能力変化
+- [ ] 地域イベントの影響
+
+### 📊 実装優先度とスケジュール
+
+#### 高優先度（1-2週間）
+1. **データベース統合**: 基盤となるデータ永続化
+2. **対戦システム統合**: 既存システムとの連携
+
+#### 中優先度（2-4週間）
+3. **大会システム実装**: ゲームプレイの拡張
+4. **地域マップシステム**: ユーザー体験の向上
+
+#### 低優先度（1-2ヶ月）
+5. **AI適応システム**: 高度な機能の実装
+
+### 🔍 テストと検証
+
+#### 単体テスト
+- [ ] ライバル校生成ロジックのテスト
+- [ ] 地域特性計算のテスト
+- [ ] 戦術適応ロジックのテスト
+
+#### 統合テスト
+- [ ] データベース操作のテスト
+- [ ] 対戦システム連携のテスト
+- [ ] 大会システムのテスト
+
+#### パフォーマンステスト
+- [ ] 大量ライバル校生成のテスト
+- [ ] 対戦処理の負荷テスト
+- [ ] データベースクエリの最適化
+
+### 📝 実装完了チェックリスト
+
+#### フェーズ1完了確認
+- [ ] Supabaseテーブルの作成完了
+- [ ] データ移行スクリプトの実行完了
+- [ ] 初期データの整合性確認完了
+
+#### フェーズ2完了確認
+- [ ] ライバル校AI対戦ロジック統合完了
+- [ ] 戦術適応システム実装完了
+- [ ] プレイヤーパターン学習機能完了
+
+#### フェーズ3完了確認
+- [ ] 階層制大会システム実装完了
+- [ ] 参加条件と報酬システム完了
+- [ ] ランキングシステム完了
+
+#### フェーズ4完了確認
+- [ ] 日本地図コンポーネント完了
+- [ ] 地域別統計機能完了
+- [ ] 地域間比較機能完了
+
+#### フェーズ5完了確認
+- [ ] AI適応システム実装完了
+- [ ] 動的成長システム完了
+- [ ] 難易度調整システム完了
+
+---
+
+**拡張開始日**: 2024年12月19日  
+**拡張担当者**: AI Assistant  
+**現在の状況**: 基本システム完了、データベース統合準備中  
+**次回更新予定**: フェーズ1完了後  

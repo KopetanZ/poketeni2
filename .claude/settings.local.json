@@ -10,7 +10,14 @@
       "Bash(npm run:*)",
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "WebSearch",
+      "WebFetch(domain:saiseikojo.com)",
+      "WebFetch(domain:game8.jp)",
+      "WebFetch(domain:www.heita-wakuwaku.com)",
+      "WebFetch(domain:note.com)",
+      "WebFetch(domain:pokeapi.co)",
+      "WebFetch(domain:appmedia.jp)"
     ],
     "deny": []
   }
