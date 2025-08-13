@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { IntegratedGameFlow, GameState } from '../../lib/integrated-game-flow';
 import { Player, GameDate } from '@/types/game';
 import { CalendarDay } from '../../types/calendar';
@@ -21,6 +21,7 @@ import { EvolutionSystem } from '@/lib/evolution-system';
 import { EvolutionModal } from '@/components/evolution/EvolutionModal';
 import { supabase } from '@/lib/supabase';
 import { EventHistoryDisplay } from '../events/EventHistoryDisplay';
+import { BattleSystemDebugger } from '../debug/BattleSystemDebugger';
 
 interface IntegratedGameInterfaceProps {
   initialPlayer: Player;
@@ -84,6 +85,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [showStrategicChoice, setShowStrategicChoice] = useState(false);
   const [showCardResult, setShowCardResult] = useState(false);
   const [showSeasonalEvent, setShowSeasonalEvent] = useState(false);
+  const [showBattleDebugger, setShowBattleDebugger] = useState(false);
   
   // 結果データ
   const [lastCardResult, setLastCardResult] = useState<CardUsageResult | null>(null);
@@ -137,8 +139,8 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     }
   };
 
-  // ゲーム状態の同期
-  const syncGameState = async () => {
+  // ゲーム状態の同期（改善版）
+  const syncGameState = async (): Promise<boolean> => {
     const newGameState = gameFlow.getGameState();
     const currentDay = gameFlow.getCurrentDay();
     
@@ -147,67 +149,196 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     
     // カレンダー状態の整合性チェック
     if (!currentDay || !currentDay.year || !currentDay.month || !currentDay.day) {
-      console.error('Invalid calendar state:', currentDay);
-      return;
+      console.error('❌ Invalid calendar state:', currentDay);
+      return false;
     }
     
     // カレンダー状態も同期
     if (newGameState.calendarSystem) {
       const calendarState = newGameState.calendarSystem.getCurrentState();
-      console.log('カレンダー状態同期:', calendarState.currentDate);
+      console.log('📅 カレンダー状態同期:', calendarState.currentDate);
       
       // 永続化を同期的に実行
       if (schoolId) {
         try {
-          await persistCalendarStateSync(calendarState.currentDate);
+          const persistenceSuccess = await persistCalendarStateSync(calendarState.currentDate);
+          
+          if (persistenceSuccess) {
+            console.log('✅ ゲーム状態の同期が完了しました');
+            return true;
+          } else {
+            console.warn('⚠️ 永続化がスキップされました（接続問題など）');
+            return false;
+          }
+          
         } catch (error) {
-          console.error('Calendar persistence failed:', error);
+          console.error('❌ Calendar persistence failed:', error);
+          
+          // エラー時の状態復旧を試行
+          try {
+            console.log('🔄 エラー後の状態復旧を試行します');
+            
+            // 現在のユーザーIDを取得
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+              console.error('❌ ユーザーが認証されていません');
+              return false;
+            }
+            
+            // データベースから現在の日付を再取得
+            const { data: dbData, error: fetchError } = await supabase
+              .from('schools')
+              .select('current_year, current_month, current_day')
+              .eq('user_id', user.id)
+              .single();
+            
+            if (fetchError || !dbData) {
+              console.error('❌ データベースからの日付取得に失敗:', fetchError);
+              return false;
+            }
+            
+            // データベースの日付とゲーム状態の日付を比較
+            const dbDate = {
+              year: dbData.current_year,
+              month: dbData.current_month,
+              day: dbData.current_day
+            };
+            
+            const gameDate = {
+              year: currentDay.year,
+              month: currentDay.month,
+              day: currentDay.day
+            };
+            
+            console.log('📊 日付比較:', { database: dbDate, game: gameDate });
+            
+            // 不一致がある場合、データベースの日付でゲーム状態を復旧
+            if (dbDate.year !== gameDate.year || 
+                dbDate.month !== gameDate.month || 
+                dbDate.day !== gameDate.day) {
+              
+              console.log('🔄 日付の不一致を検出。データベースの日付で復旧します');
+              
+              if (typeof gameFlow.initializeCalendarWithDate === 'function') {
+                gameFlow.initializeCalendarWithDate(dbDate.year, dbDate.month, dbDate.day);
+                console.log('✅ カレンダー状態を復旧しました');
+                
+                // 復旧後の状態を再同期
+                const recoveredState = gameFlow.getGameState();
+                setGameState(recoveredState);
+                
+                // 通知を追加
+                setNotifications(prev => [...prev, '日付状態を復旧しました'].slice(-5));
+                
+                return true;
+              }
+            }
+            
+          } catch (recoveryError) {
+            console.error('❌ 状態復旧にも失敗:', recoveryError);
+            return false;
+          }
+          
+          return false;
         }
       }
     }
+    
+    return true;
   };
 
-  // 新しい同期的永続化関数
-  const persistCalendarStateSync = async (currentDate: CalendarDay): Promise<void> => {
+  // 新しい同期的永続化関数（改善版）
+  const persistCalendarStateSync = async (currentDate: CalendarDay): Promise<boolean> => {
     // 前回と異なる日付の場合のみ永続化
     if (!lastPersistedDateRef.current || 
         lastPersistedDateRef.current.year !== currentDate.year ||
         lastPersistedDateRef.current.month !== currentDate.month ||
         lastPersistedDateRef.current.day !== currentDate.day) {
       
+      // 進行前の状態を保存（ロールバック用）
+      const previousDate = lastPersistedDateRef.current ? { ...lastPersistedDateRef.current } : null;
+      
       try {
         // まず接続状態を確認
         const isConnected = await checkSupabaseConnection();
         if (!isConnected) {
           console.warn('Supabase接続が利用できないため、カレンダー状態の永続化をスキップします');
-          return;
+          return false;
         }
         
+        // 現在のユーザーIDを取得
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.error('❌ ユーザーが認証されていません');
+          return false;
+        }
+        
+        // データベース更新を実行（user_idを使用）
         const { error } = await supabase
           .from('schools')
           .update({
             current_year: currentDate.year,
             current_month: currentDate.month,
             current_day: currentDate.day
+            // updated_atはトリガーで自動更新されるため削除
           })
-          .eq('id', schoolId);
+          .eq('user_id', user.id);
         
         if (error) {
           throw error;
         }
         
-        console.log('カレンダー状態をデータベースに永続化しました:', currentDate);
+        // 成功時：参照を更新
         lastPersistedDateRef.current = {
           year: currentDate.year,
           month: currentDate.month,
           day: currentDate.day
         };
+        
+        console.log('✅ カレンダー状態をデータベースに永続化しました:', currentDate);
+        return true;
+        
       } catch (e) {
-        console.error('カレンダー状態の永続化に失敗:', e);
+        console.error('❌ カレンダー状態の永続化に失敗:', e);
+        
+        // エラー時の状態復旧
+        if (previousDate) {
+          console.log('🔄 前回の状態にロールバックを試行:', previousDate);
+          
+          try {
+            // 現在のユーザーIDを取得
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              // 前回の状態でデータベースを更新
+              const { error: rollbackError } = await supabase
+                .from('schools')
+                .update({
+                  current_year: previousDate.year,
+                  current_month: previousDate.month,
+                  current_day: previousDate.day
+                  // updated_atはトリガーで自動更新されるため削除
+                })
+                .eq('user_id', user.id);
+              
+              if (rollbackError) {
+                console.error('❌ ロールバックにも失敗:', rollbackError);
+              } else {
+                console.log('✅ ロールバックが完了しました');
+                // ロールバック成功時は前回の状態を維持
+                lastPersistedDateRef.current = previousDate;
+              }
+            }
+          } catch (rollbackException) {
+            console.error('❌ ロールバック処理で例外が発生:', rollbackException);
+          }
+        }
+        
+        // エラーを再スロー（呼び出し元で処理）
         throw e;
       }
     } else {
-      console.log('カレンダー状態: 前回と同じ日付のため永続化をスキップ:', currentDate);
+      console.log('ℹ️ カレンダー状態: 前回と同じ日付のため永続化をスキップ:', currentDate);
+      return true; // スキップは成功として扱う
     }
   };
 
@@ -283,13 +414,47 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     };
   }, [gameFlow, schoolId, calendarInitialized]);
 
-  // 日付進行処理
+  // 日付進行処理（改善版）
   const handleAdvanceDay = async () => {
     setIsAdvancingDay(true);
     
     try {
+      // 進行前の状態を保存（ロールバック用）
+      const stateBefore = gameFlow.getGameState();
+      const dateBefore = gameFlow.getCurrentDay();
+      
+      console.log('📅 日付進行開始:', dateBefore);
+      
+      // 日付を進める
       const result = await gameFlow.advanceDay();
-      syncGameState();
+      
+      // 状態同期を同期的に実行（永続化の完了を待つ）
+      const syncSuccess = await syncGameState();
+      
+      if (!syncSuccess) {
+        console.warn('⚠️ 状態同期に失敗しました。ロールバックを試行します');
+        
+        // ロールバック処理
+        try {
+          if (typeof gameFlow.initializeCalendarWithDate === 'function') {
+            gameFlow.initializeCalendarWithDate(dateBefore.year, dateBefore.month, dateBefore.day);
+            console.log('✅ 日付進行をロールバックしました');
+            
+            // 状態を復旧
+            const recoveredState = gameFlow.getGameState();
+            setGameState(recoveredState);
+            
+            setNotifications(prev => [...prev, '日付進行をロールバックしました'].slice(-5));
+            return;
+          }
+        } catch (rollbackError) {
+          console.error('❌ ロールバックにも失敗:', rollbackError);
+          setNotifications(prev => [...prev, 'エラー: 状態復旧に失敗しました'].slice(-5));
+          return;
+        }
+      }
+      
+      console.log('✅ 日付進行完了:', result.newDay);
       
       // 通知の追加
       const newNotifications: string[] = [];
@@ -328,14 +493,29 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       setNotifications(prev => [...prev, ...newNotifications].slice(-5)); // 最新5件のみ保持
       
     } catch (error) {
-      console.error('Error advancing day:', error);
+      console.error('❌ Error advancing day:', error);
       setNotifications(prev => [...prev, 'エラーが発生しました'].slice(-5));
+      
+      // エラー時の状態復旧を試行
+      try {
+        console.log('🔄 エラー後の状態復旧を試行します');
+        const recoverySuccess = await syncGameState();
+        
+        if (recoverySuccess) {
+          console.log('✅ エラー後の状態復旧に成功しました');
+          setNotifications(prev => [...prev, '状態を復旧しました'].slice(-5));
+        } else {
+          console.warn('⚠️ エラー後の状態復旧に失敗しました');
+        }
+      } catch (recoveryError) {
+        console.error('❌ 状態復旧処理で例外が発生:', recoveryError);
+      }
     }
     
     setIsAdvancingDay(false);
   };
 
-  // カード使用処理（すごろく進行対応）
+  // カード使用処理（すごろく進行対応・改善版）
   const handleCardUse = async (cardId: string) => {
     console.log('=== カード使用開始 ===');
     console.log('使用前の状態:', {
@@ -349,10 +529,12 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       const card = gameState.availableCards.find(c => c.id === cardId);
       if (!card) return;
 
-      // 進行前の状態を保存
+      // 進行前の状態を保存（ロールバック用）
       const stateBefore = gameFlow.getGameState();
       const originalDayCount = stateBefore.dayCount;
       const originalDate = gameFlow.getCurrentDay();
+
+      console.log('📅 カード使用前の日付:', originalDate);
 
       // IntegratedGameFlow の useTrainingCard を呼び出し（すごろく進行含む）
       const result = gameFlow.useTrainingCard(card);
@@ -361,8 +543,31 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       // アニメーション完了を待つため、より長い遅延を設定
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // 状態同期を実行
-      syncGameState();
+      // 状態同期を同期的に実行（永続化の完了を待つ）
+      const syncSuccess = await syncGameState();
+      
+      if (!syncSuccess) {
+        console.warn('⚠️ カード使用後の状態同期に失敗しました。ロールバックを試行します');
+        
+        // ロールバック処理
+        try {
+          if (typeof gameFlow.initializeCalendarWithDate === 'function') {
+            gameFlow.initializeCalendarWithDate(originalDate.year, originalDate.month, originalDate.day);
+            console.log('✅ カード使用をロールバックしました');
+            
+            // 状態を復旧
+            const recoveredState = gameFlow.getGameState();
+            setGameState(recoveredState);
+            
+            setNotifications(prev => [...prev, 'カード使用をロールバックしました'].slice(-5));
+            return;
+          }
+        } catch (rollbackError) {
+          console.error('❌ ロールバックにも失敗:', rollbackError);
+          setNotifications(prev => [...prev, 'エラー: 状態復旧に失敗しました'].slice(-5));
+          return;
+        }
+      }
       
       // 同期後の状態を再取得
       const stateAfter = gameFlow.getGameState();
@@ -372,56 +577,55 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       setLastCardResult(result);
       setShowCardResult(true);
       
-      console.log('カード使用前の日付:', originalDate);
-      console.log('カード使用後の日付:', newDate);
-      console.log('進行日数:', result.daysProgressed);
+      console.log('📅 カード使用後の日付:', newDate);
+      console.log('📊 進行日数:', result.daysProgressed);
       
       // 日付が実際に進んでいるかチェック
       if (result.daysProgressed > 0) {
         // 日付が進んでいる場合、通知を追加
         setNotifications(prev => [...prev, `日付が${result.daysProgressed}日進みました: ${originalDate.month}/${originalDate.day} → ${newDate.month}/${newDate.day}`].slice(-5));
         
-              // 手動状態更新を削除 - gameFlowの状態のみを信頼する
-      console.log('カード使用完了: gameFlowの状態を信頼し、手動更新は行いません');
-      
-      // 状態整合性チェック
-      if (!gameFlow.validateGameState()) {
-        console.warn('状態整合性チェックに失敗しました');
+        // 手動状態更新を削除 - gameFlowの状態のみを信頼する
+        console.log('✅ カード使用完了: gameFlowの状態を信頼し、手動更新は行いません');
         
-        // カレンダー状態の復旧を試行
-        console.log('カレンダー状態の復旧を試行します');
-        const calendarSystem = gameFlow.getGameState().calendarSystem;
-        if (calendarSystem.recoverCalendarState()) {
-          console.log('カレンダー状態の復旧に成功しました');
-          setNotifications(prev => [...prev, 'カレンダー状態を復旧しました'].slice(-5));
+        // 状態整合性チェック（自動修正は行われません）
+        if (!gameFlow.validateGameState()) {
+          console.warn('⚠️ 状態整合性チェックに失敗しました');
           
-          // 復旧後の再度検証
-          if (gameFlow.validateGameState()) {
-            console.log('復旧後の状態整合性チェックに成功しました');
-            setNotifications(prev => [...prev, 'ゲーム状態の整合性が回復しました'].slice(-5));
+          // カレンダー状態の復旧を試行
+          console.log('🔄 カレンダー状態の復旧を試行します');
+          const calendarSystem = gameFlow.getGameState().calendarSystem;
+          if (calendarSystem.recoverCalendarState()) {
+            console.log('✅ カレンダー状態の復旧に成功しました');
+            setNotifications(prev => [...prev, 'カレンダー状態を復旧しました'].slice(-5));
+            
+            // 復旧後の再度検証
+            if (gameFlow.validateGameState()) {
+              console.log('✅ 復旧後の状態整合性チェックに成功しました');
+              setNotifications(prev => [...prev, 'ゲーム状態の整合性が回復しました'].slice(-5));
+            } else {
+              console.warn('⚠️ 復旧後も状態整合性チェックに失敗しました');
+              // より詳細な情報を提供
+              const gameState = gameFlow.getGameState();
+              console.warn('復旧後の詳細状態:', {
+                dayCount: gameState.dayCount,
+                currentDate: gameState.calendarSystem.getCurrentState().currentDate,
+                calendarReady: gameState.calendarSystem.isCalendarReady()
+              });
+              setNotifications(prev => [...prev, '情報: 状態調整を完了しました'].slice(-5));
+            }
           } else {
-            console.warn('復旧後も状態整合性チェックに失敗しました');
-            // より詳細な情報を提供
-            const gameState = gameFlow.getGameState();
-            console.warn('復旧後の詳細状態:', {
-              dayCount: gameState.dayCount,
-              currentDate: gameState.calendarSystem.getCurrentState().currentDate,
-              calendarReady: gameState.calendarSystem.isCalendarReady()
-            });
-            setNotifications(prev => [...prev, '情報: 状態調整を完了しました'].slice(-5));
+            console.warn('⚠️ カレンダー状態の復旧に失敗しました');
+            setNotifications(prev => [...prev, '情報: ゲーム状態を自動調整しました'].slice(-5));
           }
         } else {
-          console.warn('カレンダー状態の復旧に失敗しました');
-          setNotifications(prev => [...prev, '情報: ゲーム状態を自動調整しました'].slice(-5));
+          // 状態整合性チェックが成功した場合
+          console.log('✅ 状態整合性チェックに成功しました');
         }
       } else {
-        // 状態整合性チェックが成功した場合
-        console.log('状態整合性チェックに成功しました');
+        // 日付が進んでいない場合、警告を追加
+        setNotifications(prev => [...prev, '警告: カード使用後も日付が進んでいません'].slice(-5));
       }
-    } else {
-      // 日付が進んでいない場合、警告を追加
-      setNotifications(prev => [...prev, '警告: カード使用後も日付が進んでいません'].slice(-5));
-    }
       
       // プレイヤー能力・経験値の永続化（全部員対象）
       (async () => {
@@ -443,139 +647,31 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
               .eq('id', p.id);
           }
         } catch (e) {
-          console.error('Failed to persist card training player updates:', e);
+          console.error('❌ Failed to persist card training player updates:', e);
         }
       })();
-
-      // 進行結果の通知
-      const progressNotifications: string[] = [];
-      if (result.success) {
-        progressNotifications.push(`${card.name}: ${result.successLevel}`);
-        
-        // カード使用ログを追加
-        addEventLog({
-          type: 'card_use',
-          message: `${card.name}を使用`,
-          details: `${result.daysProgressed}マス進みました`,
-          cardName: card.name
-        });
-      }
-      progressNotifications.push(`${result.daysProgressed}日進行しました`);
-      
-      // イベント通知
-      if (result.triggeredEvents.length > 0) {
-        progressNotifications.push(`イベント発生: ${result.triggeredEvents.length}件`);
-        
-        // イベントログを追加
-        result.triggeredEvents.forEach(eventId => {
-          addEventLog({
-            type: 'event',
-            message: `イベント発生: ${eventId}`,
-            details: 'マス目で特別なイベントが発生しました'
-          });
-        });
-      }
-      
-      // 進化可能チェック（新規のみ）
-      try {
-        const candidates = EvolutionSystem
-          .getEvolvablePlayers(stateAfter.allPlayers || [stateAfter.player])
-          .filter(p => !promptedEvolutionIdsRef.current.has(p.id));
-        if (candidates.length > 0) {
-          setEvolutionTarget(candidates[0]);
-          setShowEvolutionModal(true);
-          promptedEvolutionIdsRef.current.add(candidates[0].id);
-          progressNotifications.push(`${candidates[0].pokemon_name}が進化可能になりました！`);
-        }
-      } catch {}
-
-      setNotifications(prev => [...prev, ...progressNotifications].slice(-5));
-
-      console.log('=== カード使用完了 ===');
-      console.log('使用後の状態:', {
-        currentDate: gameFlow.getCurrentDay(),
-        dayCount: gameFlow.getGameState().dayCount,
-        availableCards: gameFlow.getGameState().availableCards.length
-      });
-
-      // 学校日付・学校ステータスの永続化（エラーが発生してもゲーム進行を妨げない）
-      if (schoolId) {
-        const persistSchoolData = async () => {
-          try {
-            const { error } = await supabase
-              .from('schools')
-              .update({
-                current_year: newDate.year,
-                current_month: newDate.month,
-                current_day: newDate.day,
-                funds: stateAfter.schoolStats.funds,
-                reputation: stateAfter.schoolStats.reputation
-              })
-              .eq('id', schoolId);
-            
-            if (error) {
-              console.error('学校データの永続化でエラーが発生:', error);
-            } else {
-              console.log('学校データを永続化しました:', { date: newDate, stats: stateAfter.schoolStats });
-            }
-          } catch (e) {
-            console.error('Failed to persist school date/stats:', e);
-            // エラーが発生してもゲーム進行を妨げない
-          }
-        };
-        
-        // バックグラウンドで実行
-        persistSchoolData();
-      }
-      
-      // 手札の状態を確認
-      const cardsAfterUsage = gameFlow.getGameState().availableCards;
-      console.log('カード使用後の手札数:', cardsAfterUsage.length);
-      
-      // 手札が空になっている場合は警告
-      if (cardsAfterUsage.length === 0) {
-        setNotifications(prev => [...prev, '警告: 手札が空になっています。カード補充を確認してください。'].slice(-5));
-      }
-      
-      // 親コンポーネントにゲーム状態の更新を通知
-      if (onGameStateUpdate) {
-        onGameStateUpdate({
-          currentDate: newDate,
-          schoolStats: {
-            name: stateAfter.schoolStats.name,
-            funds: stateAfter.schoolStats.funds,
-            reputation: stateAfter.schoolStats.reputation,
-            facilities: stateAfter.schoolStats.facilities,
-            totalMatches: stateAfter.schoolStats.totalMatches,
-            totalWins: stateAfter.schoolStats.totalWins,
-            totalTournaments: stateAfter.schoolStats.totalTournaments,
-            founded: stateAfter.schoolStats.founded
-          }
-        });
-      }
-      
-      // 緊急事態チェック
-      const emergency = gameFlow.handleEmergency();
-      if (emergency) {
-        setNotifications(prev => [...prev, `緊急事態: ${emergency.type}`].slice(-5));
-      }
-
-      // 戦略的選択肢のチェック
-      const availableChoices = gameFlow.getActiveChoice();
-      if (availableChoices) {
-        setShowStrategicChoice(true);
-      }
-      
-      // アニメーション完了後にローディング状態を解除
-      setTimeout(() => {
-        setIsAdvancingDay(false);
-      }, 2000);
       
     } catch (error) {
-      console.error('カード使用処理でエラーが発生:', error);
-      setNotifications(prev => [...prev, 'カード使用処理でエラーが発生しました'].slice(-5));
-      setIsAdvancingDay(false);
+      console.error('❌ Error using card:', error);
+      setNotifications(prev => [...prev, 'カード使用中にエラーが発生しました'].slice(-5));
+      
+      // エラー時の状態復旧を試行
+      try {
+        console.log('🔄 エラー後の状態復旧を試行します');
+        const recoverySuccess = await syncGameState();
+        
+        if (recoverySuccess) {
+          console.log('✅ エラー後の状態復旧に成功しました');
+          setNotifications(prev => [...prev, '状態を復旧しました'].slice(-5));
+        } else {
+          console.warn('⚠️ エラー後の状態復旧に失敗しました');
+        }
+      } catch (recoveryError) {
+        console.error('❌ 状態復旧処理で例外が発生:', recoveryError);
+      }
     }
+    
+    setIsAdvancingDay(false);
   };
 
   // 戦略的選択処理
@@ -622,6 +718,545 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
   const playerStats = calculatePlayerStats();
 
+  // タブ切り替え時の状態保存
+  const handleTabChange = async (newTab: 'sugoroku' | 'calendar' | 'stats' | 'events' | 'cards') => {
+    // 現在のタブを離れる前に状態を永続化
+    if (activeTab !== newTab) {
+      console.log(`=== タブ切り替え開始 ===`);
+      console.log(`現在のタブ: ${activeTab} → 新しいタブ: ${newTab}`);
+      console.log(`現在の日付:`, gameFlow.getCurrentDay());
+      console.log(`現在のゲーム状態:`, gameFlow.getGameState());
+      
+      try {
+        // 現在のゲーム状態を永続化
+        console.log('状態保存を開始...');
+        
+        // 現在の日付を確実に保存
+        const currentDate = gameFlow.getCurrentDay();
+        if (currentDate) {
+          console.log('📅 現在の日付を確実に保存:', currentDate);
+          await persistCalendarStateSync(currentDate);
+        }
+        
+        // 完全なゲーム状態を永続化
+        await persistGameState();
+        console.log('✅ タブ切り替え時の状態保存完了');
+        
+        // 状態保存が完了してからタブを切り替え
+        setActiveTab(newTab);
+        console.log(`✅ タブ切り替え完了: ${newTab}`);
+      } catch (error) {
+        console.error('❌ タブ切り替え時の状態保存に失敗:', error);
+        
+        // エラーが発生してもタブは切り替える（ユーザビリティのため）
+        setActiveTab(newTab);
+        
+        // エラー通知を追加
+        setNotifications(prev => [...prev, '状態保存に失敗しました。データが失われる可能性があります。'].slice(-5));
+      }
+    }
+  };
+
+  // ゲーム状態の完全永続化
+  const persistGameState = async (): Promise<void> => {
+    console.log('🎯 persistGameState: 関数開始');
+    console.log('🎯 persistGameState: schoolId =', schoolId);
+    
+    if (!schoolId) {
+      console.log('❌ persistGameState: schoolIdが未設定のため終了');
+      return;
+    }
+    
+    try {
+      console.log('=== ゲーム状態の完全永続化を開始 ===');
+      const currentState = gameFlow.getGameState();
+      const currentDate = gameFlow.getCurrentDay();
+      
+      console.log('現在のゲーム状態:', currentState);
+      console.log('現在の日付:', currentDate);
+      console.log('🎯 gameFlow.getCurrentDay()の結果:', currentDate);
+      
+      if (!currentDate) {
+        console.warn('⚠️ 現在の日付が取得できません');
+        console.log('❌ persistGameState: currentDateが未設定のため終了');
+        return;
+      }
+      
+      // 日付の整合性チェック
+      const lastPersistedDate = lastPersistedDateRef.current;
+      if (lastPersistedDate) {
+        const isDateConsistent = (
+          lastPersistedDate.year === currentDate.year &&
+          lastPersistedDate.month === currentDate.month &&
+          lastPersistedDate.day === currentDate.day
+        );
+        
+        if (!isDateConsistent) {
+          console.warn('⚠️ 永続化しようとしている日付が前回と異なります');
+          console.log('前回永続化:', lastPersistedDate);
+          console.log('現在の日付:', currentDate);
+        }
+      }
+      
+      // 1. カレンダー状態の永続化
+      console.log('📅 カレンダー状態の永続化を開始...');
+      await persistCalendarStateSync(currentDate);
+      console.log('✅ カレンダー状態の永続化完了');
+      
+      // 2. ゲーム進行状況の永続化
+      console.log('🎮 ゲーム進行状況の永続化を開始...');
+      console.log('🎮 現在のゲーム状態:', currentState);
+      console.log('🎮 現在の日付:', currentDate);
+      console.log('🎮 schoolId:', schoolId);
+      console.log('🎮 persistGameProgress関数の存在確認:', typeof persistGameProgress);
+      console.log('🎮 persistGameProgressを呼び出し中...');
+      
+      try {
+        console.log('🎮 persistGameProgress呼び出し直前');
+        const result = await persistGameProgress(currentState);
+        console.log('🎮 persistGameProgress呼び出し完了, 結果:', result);
+        console.log('✅ ゲーム進行状況の永続化完了');
+      } catch (progressError) {
+        console.error('❌ ゲーム進行状況の永続化に失敗:', progressError);
+        console.error('❌ エラーの詳細:', progressError);
+        console.warn('⚠️ ゲーム進行状況の永続化は失敗しましたが、他の状態は保存されます');
+        // エラーが発生しても処理を続行（他の状態は保存される）
+      }
+      
+      // 3. 手札の永続化
+      console.log('🃏 手札の永続化を開始...');
+      await persistHandCards(currentState.availableCards);
+      console.log('✅ 手札の永続化完了');
+      
+      console.log('🎉 ゲーム状態の完全永続化が完了しました');
+    } catch (error) {
+      console.error('❌ ゲーム状態の永続化に失敗:', error);
+      console.error('❌ エラーの詳細:', error);
+      throw error;
+    }
+  };
+
+  // ゲーム進行状況の永続化
+  const persistGameProgress = async (gameState: GameState): Promise<any> => {
+    console.log('🎮 persistGameProgress: 関数開始');
+    console.log('🎮 persistGameProgress: schoolId =', schoolId);
+    console.log('🎮 persistGameProgress: gameState =', gameState);
+    
+    if (!schoolId) {
+      console.log('❌ persistGameProgress: schoolIdが未設定のため終了');
+      return;
+    }
+    
+    try {
+      console.log('=== ゲーム進行状況の永続化を開始 ===');
+      console.log('🎮 persistGameProgress: schoolId =', schoolId);
+      
+      const currentDate = gameState.calendarSystem.getCurrentState().currentDate;
+      console.log('保存しようとしている日付:', currentDate);
+      
+      // 日付の整合性チェック
+      const lastPersistedDate = lastPersistedDateRef.current;
+      if (lastPersistedDate) {
+        const isDateConsistent = (
+          lastPersistedDate.year === currentDate.year &&
+          lastPersistedDate.month === currentDate.month &&
+          lastPersistedDate.day === currentDate.day
+        );
+        
+        if (!isDateConsistent) {
+          console.warn('⚠️ ゲーム進行状況の永続化で日付の不一致を検出');
+          console.log('前回永続化:', lastPersistedDate);
+          console.log('現在の日付:', currentDate);
+        }
+      }
+      
+      const progressData = {
+        school_id: schoolId,
+        current_position: gameState.dayCount,
+        total_progress: gameState.dayCount,
+        hand_cards_count: gameState.availableCards.length,
+        max_hand_size: 5,
+        cards_used_today: gameState.stats.totalCardsUsed,
+        total_moves: gameState.stats.totalChoicesMade,
+        current_game_date_year: currentDate.year,
+        current_game_date_month: currentDate.month,
+        current_game_date_day: currentDate.day,
+        last_game_date_year: currentDate.year,
+        last_game_date_month: currentDate.month,
+        last_game_date_day: currentDate.day,
+        total_days_played: gameState.dayCount,
+        consecutive_days_played: gameState.dayCount,
+        last_play_date: new Date().toISOString()
+      };
+      
+      console.log('保存するデータ:', progressData);
+      console.log('🎮 既存レコードの確認を開始...');
+      console.log('🎮 検索条件: school_id =', schoolId);
+      
+      // まず既存のレコードがあるかを確認
+      const { data: existingRecord, error: selectError } = await supabase
+        .from('game_progress')
+        .select('id')
+        .eq('school_id', schoolId)
+        .single();
+      
+      console.log('🎮 既存レコード確認結果:', { existingRecord, selectError });
+      console.log('🎮 検索クエリ完了');
+      
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('❌ 既存レコードの確認に失敗:', selectError);
+        throw selectError;
+      }
+      
+      let result;
+      if (existingRecord) {
+        // 既存レコードがある場合は更新
+        console.log('🔄 既存レコードを更新中...');
+        console.log('🔄 更新対象ID:', existingRecord.id);
+        console.log('🔄 更新データ:', progressData);
+        
+        result = await supabase
+          .from('game_progress')
+          .update(progressData)
+          .eq('id', existingRecord.id)
+          .select();
+        
+        console.log('🔄 更新操作完了');
+      } else {
+        // 新規レコードの場合は挿入
+        console.log('📝 新規レコードを挿入中...');
+        console.log('📝 挿入データ:', progressData);
+        
+        result = await supabase
+          .from('game_progress')
+          .insert(progressData)
+          .select();
+        
+        console.log('📝 挿入操作完了');
+      }
+      
+      console.log('🎮 データベース操作結果:', result);
+      console.log('🎮 結果の詳細:', {
+        success: !result.error,
+        data: result.data,
+        error: result.error,
+        count: result.data?.length || 0
+      });
+      
+      if (result.error) throw result.error;
+      console.log('✅ ゲーム進行状況を永続化しました');
+      return result.data; // 成功した場合はデータを返す
+    } catch (error) {
+      console.error('❌ ゲーム進行状況の永続化に失敗:', error);
+      console.error('❌ エラーの詳細:', error);
+      
+      // エラーの型をチェックして詳細情報を出力
+      if (error && typeof error === 'object' && 'code' in error) {
+        const supabaseError = error as { code?: string; message?: string; details?: string; hint?: string };
+        console.error('❌ エラーのコード:', supabaseError.code);
+        console.error('❌ エラーのメッセージ:', supabaseError.message);
+        console.error('❌ エラーの詳細情報:', supabaseError.details);
+        console.error('❌ エラーのヒント:', supabaseError.hint);
+        
+        // エラーの種類に応じた詳細情報を出力
+        if (supabaseError.code === '42501') {
+          console.error('🔒 RLSポリシーによりアクセスが拒否されました');
+        } else if (supabaseError.code === '23505') {
+          console.error('🔑 制約違反: 重複キー');
+        } else if (supabaseError.code === '23502') {
+          console.error('🔑 制約違反: NOT NULL制約');
+        } else if (supabaseError.code === '23503') {
+          console.error('🔑 制約違反: 外部キー制約');
+        } else if (supabaseError.code === '42703') {
+          console.error('🔑 カラムが存在しません');
+        }
+      }
+      
+      throw error;
+    }
+  };
+
+  // 手札の永続化
+  const persistHandCards = async (cards: TrainingCard[]): Promise<void> => {
+    if (!schoolId) return;
+    
+    try {
+      console.log('=== 手札の永続化を開始 ===');
+      console.log('保存しようとしている手札:', cards.map(c => ({ id: c.id, name: c.name })));
+      
+      // 既存の手札を削除
+      console.log('🗑️ 既存の手札を削除中...');
+      const { error: deleteError } = await supabase
+        .from('hand_cards')
+        .delete()
+        .eq('school_id', schoolId);
+      
+      if (deleteError) throw deleteError;
+      console.log('✅ 既存の手札の削除完了');
+      
+      // 新しい手札を挿入
+      if (cards.length > 0) {
+        console.log('📝 新しい手札を挿入中...');
+        const handCardsData = cards.map(card => ({
+          id: `hand_card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          school_id: schoolId,
+          card_data: card,
+          created_at: new Date().toISOString()
+        }));
+        
+        console.log('挿入するデータ:', handCardsData.map(hc => ({ id: hc.id, cardName: hc.card_data.name })));
+        
+        const { error: insertError } = await supabase
+          .from('hand_cards')
+          .insert(handCardsData);
+        
+        if (insertError) throw insertError;
+        console.log('✅ 新しい手札の挿入完了');
+      } else {
+        console.log('⚠️ 保存する手札がありません');
+      }
+      
+      console.log('🎉 手札を永続化しました:', cards.length, '枚');
+    } catch (error) {
+      console.error('❌ 手札の永続化に失敗:', error);
+      throw error;
+    }
+  };
+
+  // タブ復帰時の状態復元
+  const restoreGameState = useCallback(async (): Promise<void> => {
+    if (!schoolId) return;
+    
+    try {
+      console.log('=== タブ復帰時の状態復元を開始 ===');
+      console.log('復元前の現在の日付:', gameFlow.getCurrentDay());
+      
+      // 現在のゲーム状態の日付を取得
+      const currentGameDate = gameFlow.getCurrentDay();
+      if (!currentGameDate) {
+        console.warn('⚠️ 現在のゲーム状態の日付が取得できません');
+        return;
+      }
+      
+      // 1. ゲーム進行状況の復元
+      console.log('🔍 game_progressテーブルからデータを取得中...');
+      console.log('🔍 検索条件: school_id =', schoolId);
+      
+      const { data: gameProgress, error: progressError } = await supabase
+        .from('game_progress')
+        .select('*')
+        .eq('school_id', schoolId)
+        .single();
+      
+      console.log('🔍 game_progress取得結果:', { gameProgress, progressError });
+      
+      if (progressError) {
+        if (progressError.code === 'PGRST116') {
+          console.log('ℹ️ ゲーム進行状況のレコードが存在しません（新規ゲーム）');
+        } else {
+          console.error('❌ ゲーム進行状況の取得に失敗:', progressError);
+        }
+      } else if (gameProgress) {
+        console.log('✅ ゲーム進行状況を取得:', gameProgress);
+        console.log('🔍 取得したデータの詳細:');
+        console.log('  - id:', gameProgress.id);
+        console.log('  - school_id:', gameProgress.school_id);
+        console.log('  - current_position:', gameProgress.current_position);
+        console.log('  - total_progress:', gameProgress.total_progress);
+        console.log('  - hand_cards_count:', gameProgress.hand_cards_count);
+        console.log('  - current_game_date_year:', gameProgress.current_game_date_year);
+        console.log('  - current_game_date_month:', gameProgress.current_game_date_month);
+        console.log('  - current_game_date_day:', gameProgress.current_game_date_day);
+        console.log('  - total_days_played:', gameProgress.total_days_played);
+      }
+      
+      // 2. 手札の復元
+      const { data: handCards, error: handCardsError } = await supabase
+        .from('hand_cards')
+        .select('*')
+        .eq('school_id', schoolId);
+      
+      if (handCardsError) {
+        console.error('❌ 手札の取得に失敗:', handCardsError);
+      } else {
+        console.log('✅ 手札を取得:', handCards?.length || 0, '枚');
+      }
+      
+      // 3. 状態の復元（日付の整合性チェック付き）
+      if (gameProgress) {
+        // カレンダー状態の復元（日付の整合性チェック付き）
+        if (gameProgress.current_game_date_year && 
+            gameProgress.current_game_date_month && 
+            gameProgress.current_game_date_day) {
+          
+          const dbDate = {
+            year: gameProgress.current_game_date_year,
+            month: gameProgress.current_game_date_month,
+            day: gameProgress.current_game_date_day,
+            dayOfWeek: new Date(gameProgress.current_game_date_year, 
+                               gameProgress.current_game_date_month - 1, 
+                               gameProgress.current_game_date_day).getDay()
+          };
+          
+          console.log('🔍 データベースの日付:', dbDate);
+          console.log('🔍 現在のゲーム状態の日付:', currentGameDate);
+          
+          // 日付の整合性チェック：ゲーム状態の方が新しい場合は復元をスキップ
+          const isGameDateNewer = (
+            currentGameDate.year > dbDate.year ||
+            (currentGameDate.year === dbDate.year && currentGameDate.month > dbDate.month) ||
+            (currentGameDate.year === dbDate.year && currentGameDate.month === dbDate.month && currentGameDate.day > dbDate.day)
+          );
+          
+          if (isGameDateNewer) {
+            console.log('⚠️ ゲーム状態の日付の方が新しいため、日付の復元をスキップします');
+            console.log(`ゲーム状態: ${currentGameDate.year}/${currentGameDate.month}/${currentGameDate.day}`);
+            console.log(`データベース: ${dbDate.year}/${dbDate.month}/${dbDate.day}`);
+            
+            // 日付の復元はスキップするが、他の状態は復元する
+          } else if (currentGameDate.year !== dbDate.year || 
+                     currentGameDate.month !== dbDate.month || 
+                     currentGameDate.day !== dbDate.day) {
+            
+            console.log('🔄 日付の不一致を検出。データベースの日付で復元します');
+            
+            // カレンダーシステムを復元された日付で初期化
+            if (typeof gameFlow.initializeCalendarWithDate === 'function') {
+              console.log('📅 カレンダーシステムの初期化を開始...');
+              gameFlow.initializeCalendarWithDate(
+                dbDate.year, 
+                dbDate.month, 
+                dbDate.day
+              );
+              console.log('✅ カレンダー状態を復元しました:', dbDate);
+              console.log('復元後の現在の日付:', gameFlow.getCurrentDay());
+            } else {
+              console.error('❌ initializeCalendarWithDateメソッドが見つかりません');
+            }
+          } else {
+            console.log('✅ 日付は一致しているため、復元は不要です');
+          }
+          
+          // ゲーム統計の復元
+          if (gameProgress.total_days_played !== undefined) {
+            console.log('📊 ゲーム統計を復元:', { total_days_played: gameProgress.total_days_played });
+            gameFlow.getGameState().dayCount = gameProgress.total_days_played;
+          }
+        } else {
+          console.warn('⚠️ 復元する日付データが不完全:', gameProgress);
+        }
+      } else {
+        console.log('ℹ️ ゲーム進行状況のデータが存在しないため、復元をスキップします');
+        console.log('現在のゲーム状態を維持します');
+      }
+      
+      // 手札の復元
+      if (handCards && handCards.length > 0) {
+        const restoredCards = handCards.map(hc => hc.card_data as TrainingCard);
+        gameFlow.getGameState().availableCards = restoredCards;
+        console.log('✅ 手札を復元しました:', restoredCards.length, '枚');
+        
+        // React状態も更新してUIに反映
+        setGameState(prevState => ({
+          ...prevState,
+          availableCards: restoredCards
+        }));
+      }
+      
+      // 状態を同期
+      console.log('🔄 状態同期を開始...');
+      syncGameState();
+      console.log('✅ タブ復帰時の状態復元が完了しました');
+      console.log('復元後の最終的な日付:', gameFlow.getCurrentDay());
+      
+    } catch (error) {
+      console.error('❌ タブ復帰時の状態復元に失敗:', error);
+    }
+  }, [schoolId, gameFlow]);
+
+  // タブ切り替え時の状態復元
+  useEffect(() => {
+    if (activeTab === 'sugoroku') {
+      // すごろくタブに戻った時に状態を復元
+      restoreGameState();
+    }
+  }, [activeTab, restoreGameState]);
+
+  // コンポーネント初期化時の状態復元
+  useEffect(() => {
+    if (schoolId && !calendarInitialized) {
+      // コンポーネントがマウントされた時に、データベースから状態を復元
+      const initializeFromDatabase = async () => {
+        try {
+          console.log('コンポーネント初期化: データベースから状態を復元中...');
+          
+          // 現在のゲーム状態の日付を取得
+          const currentGameDate = gameFlow.getCurrentDay();
+          console.log('初期化前の現在の日付:', currentGameDate);
+          
+          // データベースから状態を復元
+          await restoreGameState();
+          
+          // 復元後の日付を確認
+          const restoredDate = gameFlow.getCurrentDay();
+          console.log('復元後の日付:', restoredDate);
+          
+          // 日付の整合性を最終チェック
+          if (currentGameDate && restoredDate) {
+            const isDateConsistent = (
+              currentGameDate.year === restoredDate.year &&
+              currentGameDate.month === restoredDate.month &&
+              currentGameDate.day === restoredDate.day
+            );
+            
+            if (!isDateConsistent) {
+              console.warn('⚠️ 初期化後の日付が一致しません');
+              console.log('初期化前:', currentGameDate);
+              console.log('復元後:', restoredDate);
+              
+              // ゲーム状態の日付の方が新しい場合は、データベースを更新
+              const isGameDateNewer = (
+                currentGameDate.year > restoredDate.year ||
+                (currentGameDate.year === restoredDate.year && currentGameDate.month > restoredDate.month) ||
+                (currentGameDate.year === restoredDate.year && currentGameDate.month === restoredDate.month && currentGameDate.day > restoredDate.day)
+              );
+              
+              if (isGameDateNewer) {
+                console.log('🔄 ゲーム状態の日付の方が新しいため、データベースを更新します');
+                await persistCalendarStateSync(currentGameDate);
+              }
+            }
+          }
+          
+          // 初期化完了フラグを設定
+          setCalendarInitialized(true);
+          console.log('コンポーネント初期化: 状態復元完了');
+        } catch (error) {
+          console.error('コンポーネント初期化: 状態復元に失敗:', error);
+        }
+      };
+      
+      initializeFromDatabase();
+    }
+  }, [schoolId, calendarInitialized, restoreGameState]);
+
+  // 定期的な状態保存（5分ごと）
+  useEffect(() => {
+    if (!schoolId) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        console.log('定期状態保存: ゲーム状態を永続化中...');
+        await persistGameState();
+        console.log('定期状態保存: 完了');
+      } catch (error) {
+        console.error('定期状態保存: 失敗:', error);
+      }
+    }, 5 * 60 * 1000); // 5分
+    
+    return () => clearInterval(interval);
+  }, [schoolId]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
       {/* 固定ヘッダー情報 */}
@@ -638,6 +1273,16 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
             </div>
             
             <div className="flex items-center gap-6">
+              {/* デバッグボタン (開発時のみ表示) */}
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  onClick={() => setShowBattleDebugger(true)}
+                  className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  🧪 デバッグ
+                </button>
+              )}
+              
               {/* ゲーム統計 */}
               <div className="grid grid-cols-4 gap-4 text-center">
                 <div>
@@ -694,41 +1339,41 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       {/* メインコンテンツ */}
       <div className="max-w-7xl mx-auto p-4">
         {/* タブナビゲーション */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 overflow-x-auto">
           <Button
-            onClick={() => setActiveTab('sugoroku')}
+            onClick={() => handleTabChange('sugoroku')}
             variant={activeTab === 'sugoroku' ? 'default' : 'outline'}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 min-w-[200px] whitespace-nowrap"
           >
             🎲 練習すごろく ({gameState.availableCards.length}枚)
           </Button>
           <Button
-            onClick={() => setActiveTab('calendar')}
+            onClick={() => handleTabChange('calendar')}
             variant={activeTab === 'calendar' ? 'default' : 'outline'}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 min-w-[150px] whitespace-nowrap"
           >
             📅 カレンダー
           </Button>
           <Button
-            onClick={() => setActiveTab('stats')}
+            onClick={() => handleTabChange('stats')}
             variant={activeTab === 'stats' ? 'default' : 'outline'}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 min-w-[120px] whitespace-nowrap"
           >
             📊 統計
           </Button>
           <Button
-            onClick={() => setActiveTab('events')}
+            onClick={() => handleTabChange('events')}
             variant={activeTab === 'events' ? 'default' : 'outline'}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 min-w-[150px] whitespace-nowrap"
           >
             📋 イベント履歴
           </Button>
           <Button
-            onClick={() => setActiveTab('cards')}
+            onClick={() => handleTabChange('cards')}
             variant={activeTab === 'cards' ? 'default' : 'outline'}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 min-w-[150px] whitespace-nowrap"
           >
-            �� カード選択
+            🃏 カード選択
           </Button>
         </div>
 
@@ -1021,6 +1666,11 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
             })();
           }}
         />
+      )}
+
+      {/* デバッグモード: 対戦システムテスター */}
+      {showBattleDebugger && (
+        <BattleSystemDebugger onClose={() => setShowBattleDebugger(false)} />
       )}
     </div>
   );

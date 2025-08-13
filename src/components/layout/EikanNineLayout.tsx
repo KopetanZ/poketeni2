@@ -109,35 +109,39 @@ export default function EikanNineLayout({
       } ${
         isMobile && !isMobileMenuOpen ? '-translate-x-full' : 'translate-x-0'
       } ${
-        isCollapsed && !isMobile ? 'w-16' : 'w-64'
+        isCollapsed && !isMobile ? 'w-16' : 'w-80'
       } bg-gradient-to-b from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-r border-slate-600/50 shadow-2xl transition-all duration-300 ease-in-out`}
     >
-      {/* ロゴエリア */}
-      <div className="p-6 border-b border-slate-600/50">
-        <div className="text-center">
-          <div className={`${
-            isCollapsed && !isMobile ? 'text-lg' : 'text-2xl'
-          } font-bold text-yellow-400 mb-2 transition-all duration-300`}>
-            {isCollapsed && !isMobile ? '⚡' : '⚡ ポケテニマスター ⚡'}
-          </div>
-          {!isCollapsed && (
-            <div className="text-sm text-slate-300">
-              {schoolName}
-            </div>
-          )}
-        </div>
-        
-        {/* 折りたたみボタン（デスクトップのみ） */}
-        {!isMobile && (
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="absolute -right-3 top-8 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 transition-colors"
-            aria-label={isCollapsed ? 'メニューを展開' : 'メニューを折りたたむ'}
-          >
-            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-          </button>
-        )}
+{/* ロゴエリア */}
+<div className="px-4 py-4 border-b border-slate-600/50 relative w-full">
+  <div className="flex justify-between items-center w-full">
+    {/* 左側：ロゴ＋学校名 */}
+    <div className="flex flex-col">
+      <div
+        className={`${isCollapsed && !isMobile ? 'text-lg' : 'text-xl'} 
+          font-bold text-yellow-400 mb-1 transition-all duration-300`}
+      >
+        {isCollapsed && !isMobile ? '⚡' : '⚡ ポケテニ ⚡'}
       </div>
+      {!isCollapsed && (
+        <div className="text-xs text-slate-300">
+          {schoolName}
+        </div>
+      )}
+    </div>
+
+    {/* 右側：折りたたみボタン（デスクトップのみ） */}
+    {!isMobile && (
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 transition-colors"
+        aria-label={isCollapsed ? 'メニューを展開' : 'メニューを折りたたむ'}
+      >
+        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+      </button>
+    )}
+  </div>
+</div>
 
       {/* メニュー項目 */}
       <div className="p-4 overflow-y-auto flex-1">
@@ -413,7 +417,9 @@ export default function EikanNineLayout({
 
           {/* メインコンテンツエリア */}
           <div className="flex-1 overflow-y-auto bg-slate-50/95 backdrop-blur-sm">
-            {children}
+            <div className="w-3/4 mx-auto text-left">
+              {children}
+            </div>
           </div>
         </div>
         
