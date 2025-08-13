@@ -690,8 +690,13 @@ export class SpecialAbilityCalculator {
   ): number {
     let totalBonus = 0;
 
+    // 配列が空またはundefinedの場合は早期リターン
+    if (!abilities || abilities.length === 0) {
+      return totalBonus;
+    }
+
     abilities.forEach(ability => {
-      if (!ability.isActive) return;
+      if (!ability || !ability.isActive || !ability.effects) return;
 
       const effects = ability.effects;
       
@@ -739,8 +744,13 @@ export class SpecialAbilityCalculator {
   ): number {
     let totalEffect = 0;
 
+    // 配列が空またはundefinedの場合は早期リターン
+    if (!abilities || abilities.length === 0) {
+      return totalEffect;
+    }
+
     abilities.forEach(ability => {
-      if (!ability.isActive) return;
+      if (!ability || !ability.isActive || !ability.effects) return;
 
       const effects = ability.effects;
       

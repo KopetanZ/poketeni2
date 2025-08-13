@@ -22,6 +22,15 @@ export interface MatchContext {
   rally_count: number; // 現在のラリー数
   set_score: { home: number; away: number };
   game_score: { home: number; away: number };
+  // 緊急指示システム追加
+  emergency_instruction?: {
+    type: 'aggressive' | 'defensive' | 'balanced' | 'technical' | 'power' | 'counter';
+    effect_duration: number; // 効果持続ポイント数
+    remaining_effects: number; // 残り効果ポイント数
+    bonus_multiplier: number; // 能力値ボーナス倍率
+    critical_bonus: number; // クリティカルヒット確率ボーナス
+    pressure_reduction: number; // プレッシャー軽減効果
+  };
 }
 
 export interface EnhancedMatchPoint {
@@ -155,6 +164,57 @@ export class AdvancedMatchEngine {
     return modifier;
   }
 
+  // 緊急指示適用メソッド
+  public static applyEmergencyInstruction(
+    context: MatchContext,
+    instructionType: TacticType,
+    duration: number = 2
+  ): void {
+    const instructionEffects = {
+      aggressive: {
+        bonus_multiplier: 1.3,
+        critical_bonus: 15,
+        pressure_reduction: 5
+      },
+      defensive: {
+        bonus_multiplier: 1.2,
+        critical_bonus: 10,
+        pressure_reduction: 8
+      },
+      balanced: {
+        bonus_multiplier: 1.15,
+        critical_bonus: 8,
+        pressure_reduction: 6
+      },
+      technical: {
+        bonus_multiplier: 1.25,
+        critical_bonus: 12,
+        pressure_reduction: 7
+      },
+      power: {
+        bonus_multiplier: 1.35,
+        critical_bonus: 18,
+        pressure_reduction: 4
+      },
+      counter: {
+        bonus_multiplier: 1.2,
+        critical_bonus: 10,
+        pressure_reduction: 9
+      }
+    };
+
+    const effects = instructionEffects[instructionType];
+    
+    context.emergency_instruction = {
+      type: instructionType,
+      effect_duration: duration,
+      remaining_effects: duration,
+      bonus_multiplier: effects.bonus_multiplier,
+      critical_bonus: effects.critical_bonus,
+      pressure_reduction: effects.pressure_reduction
+    };
+  }
+
   // 高度な1ポイントシミュレーション
   private static simulateEnhancedPoint(
     homePlayer: Player,
@@ -193,20 +253,37 @@ export class AdvancedMatchEngine {
     const homeEnvMod = this.getEnvironmentModifier(context.weather, context.court_surface, rallyType);
     const awayEnvMod = this.getEnvironmentModifier(context.weather, context.court_surface, rallyType);
 
-    // 最終スキル値計算（特殊能力ボーナス統合）
-    const homeFinalSkill = Math.floor(
+    // 緊急指示効果適用
+    let homeFinalSkill = Math.floor(
       (homeBaseSkill + homeAbilityBonus + homeSpecialAbilityBonus) * 
       (1 + homeTacticBonus) * 
       homeConditionMod * 
       homeEnvMod
     );
     
-    const awayFinalSkill = Math.floor(
+    let awayFinalSkill = Math.floor(
       (awayBaseSkill + awayAbilityBonus + awaySpecialAbilityBonus) * 
       (1 + awayTacticBonus) * 
       awayConditionMod * 
       awayEnvMod
     );
+
+    // 緊急指示効果適用
+    if (context.emergency_instruction) {
+      const instruction = context.emergency_instruction;
+      if (instruction.remaining_effects > 0) {
+        homeFinalSkill *= instruction.bonus_multiplier;
+        awayFinalSkill *= instruction.bonus_multiplier;
+        if (instruction.critical_bonus > 0) {
+          homeFinalSkill += instruction.critical_bonus;
+          awayFinalSkill += instruction.critical_bonus;
+        }
+        if (instruction.pressure_reduction > 0) {
+          context.pressure_level = Math.max(0, context.pressure_level - instruction.pressure_reduction);
+        }
+        instruction.remaining_effects--;
+      }
+    }
 
     // ランダム要素（プレッシャーに応じて変動）
     const pressureFactor = Math.max(0.5, 1 - (context.pressure_level / 200));
@@ -264,6 +341,12 @@ export class AdvancedMatchEngine {
     context.rally_count++;
     if (criticalHit) {
       context.pressure_level = Math.min(100, context.pressure_level + 10);
+    }
+
+    // 緊急指示効果の更新
+    if (context.emergency_instruction && context.emergency_instruction.remaining_effects <= 0) {
+      // 効果が切れた場合
+      context.emergency_instruction = undefined;
     }
 
     return winner;
@@ -386,7 +469,8 @@ export class AdvancedMatchEngine {
 
   // 特殊能力ボーナス計算（新システム）
   private static calculateSpecialAbilityBonus(player: Player, skillType: string, context: MatchContext): number {
-    if (!player.special_abilities || player.special_abilities.length === 0) {
+    // 安全性チェック
+    if (!player || !player.special_abilities || !Array.isArray(player.special_abilities) || player.special_abilities.length === 0) {
       return 0;
     }
 
@@ -427,6 +511,11 @@ export class AdvancedMatchEngine {
   private static getCriticalHitRate(player: Player, context?: MatchContext): number {
     let baseRate = 0.05; // 5%基本確率
 
+    // 安全性チェック
+    if (!player) {
+      return baseRate;
+    }
+
     if (player.pokemon_stats?.ability) {
       const abilityData = getAbilityData(player.pokemon_stats.ability);
       if (abilityData?.tennis_effect.critical_rate) {
@@ -435,7 +524,7 @@ export class AdvancedMatchEngine {
     }
 
     // 特殊能力からのクリティカル率ボーナス
-    if (player.special_abilities) {
+    if (player.special_abilities && Array.isArray(player.special_abilities) && player.special_abilities.length > 0) {
       const criticalRate = SpecialAbilityCalculator.calculateSpecialEffect(
         player.special_abilities,
         'criticalHitRate'

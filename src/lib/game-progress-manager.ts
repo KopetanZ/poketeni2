@@ -178,8 +178,8 @@ export class GameProgressManager {
       const { data, error } = await supabase
         .from('game_progress')
         .update({
-          ...updates,
-          updated_at: new Date().toISOString()
+          ...updates
+          // updated_atはトリガーで自動更新されるため削除
         })
         .eq('school_id', schoolId)
         .select()
@@ -235,7 +235,7 @@ export class GameProgressManager {
           console.warn('hand_cards_countフィールドが存在しないため、スキップします');
           // フィールドが存在しない場合は、基本的な更新のみ実行
           await this.updateGameProgress(schoolId, {
-            updated_at: new Date().toISOString()
+            // updated_atはトリガーで自動更新されるため削除
           });
         } else {
           throw fieldError;

@@ -27,15 +27,22 @@ export class DateManager {
     };
   }
 
-  // データベースの学校日付を更新（単一の真実の情報源）
+  // データベースの学校日付を更新（単一の真実の情報源・改善版）
   static async updateSchoolDate(userId: string, newDate: GameDate): Promise<boolean> {
     try {
+      // 日付の妥当性チェック
+      if (!this.isValidDate(newDate)) {
+        console.error('Invalid date provided:', newDate);
+        return false;
+      }
+
       const { error } = await supabase
         .from('schools')
         .update({
           current_year: newDate.year,
           current_month: newDate.month,
           current_day: newDate.day
+          // updated_atはトリガーで自動更新されるため削除
         })
         .eq('user_id', userId);
 
@@ -44,9 +51,103 @@ export class DateManager {
         return false;
       }
       
+      console.log('✅ 学校日付を更新しました:', newDate);
       return true;
     } catch (error) {
       console.error('Date update failed:', error);
+      return false;
+    }
+  }
+
+  // 日付の妥当性チェック
+  static isValidDate(date: GameDate): boolean {
+    if (!date || typeof date.year !== 'number' || typeof date.month !== 'number' || typeof date.day !== 'number') {
+      return false;
+    }
+    
+    if (date.year < 2020 || date.year > 2030) {
+      return false;
+    }
+    
+    if (date.month < 1 || date.month > 12) {
+      return false;
+    }
+    
+    const daysInMonth = new Date(date.year, date.month, 0).getDate();
+    if (date.day < 1 || date.day > daysInMonth) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  // 日付の整合性チェック（データベースとゲーム状態の比較）
+  static async validateDateConsistency(userId: string, gameDate: GameDate): Promise<{
+    isConsistent: boolean;
+    databaseDate: GameDate | null;
+    differences: string[];
+  }> {
+    try {
+      const dbDate = await this.getCurrentSchoolDate(userId);
+      
+      if (!dbDate) {
+        return {
+          isConsistent: false,
+          databaseDate: null,
+          differences: ['データベースから日付を取得できませんでした']
+        };
+      }
+      
+      const differences: string[] = [];
+      
+      if (dbDate.year !== gameDate.year) {
+        differences.push(`年: データベース(${dbDate.year}) vs ゲーム(${gameDate.year})`);
+      }
+      
+      if (dbDate.month !== gameDate.month) {
+        differences.push(`月: データベース(${dbDate.month}) vs ゲーム(${gameDate.month})`);
+      }
+      
+      if (dbDate.day !== gameDate.day) {
+        differences.push(`日: データベース(${dbDate.day}) vs ゲーム(${gameDate.day})`);
+      }
+      
+      return {
+        isConsistent: differences.length === 0,
+        databaseDate: dbDate,
+        differences
+      };
+      
+    } catch (error) {
+      console.error('Date consistency validation failed:', error);
+      return {
+        isConsistent: false,
+        databaseDate: null,
+        differences: [`検証エラー: ${error}`]
+      };
+    }
+  }
+
+  // 日付の強制同期（データベースの日付でゲーム状態を上書き）
+  static async forceDateSync(userId: string, targetDate: GameDate): Promise<boolean> {
+    try {
+      // まず日付の妥当性をチェック
+      if (!this.isValidDate(targetDate)) {
+        console.error('Invalid target date for force sync:', targetDate);
+        return false;
+      }
+      
+      // データベースを更新
+      const updateSuccess = await this.updateSchoolDate(userId, targetDate);
+      if (!updateSuccess) {
+        return false;
+      }
+      
+      console.log('✅ 日付の強制同期が完了しました:', targetDate);
+      return true;
+      
+    } catch (error) {
+      console.error('Force date sync failed:', error);
       return false;
     }
   }

@@ -968,20 +968,11 @@ export class IntegratedGameFlow {
         tolerance: difference
       });
       
-      // 差異の大きさに応じて処理を分岐（より柔軟な許容範囲）
-      if (difference <= 10) {
-        // 小さな差異（10日以内）は自動修正
-        console.log('Day count difference within tolerance, auto-correcting...');
-        this.gameState.dayCount = expectedDayCount;
-        return true;
-      } else if (difference <= 60) {
-        // 中程度の差異（60日以内）は警告付きで自動修正
-        console.warn('Significant day count difference detected, auto-correcting with warning...');
-        this.gameState.dayCount = expectedDayCount;
-        return true;
-      } else {
-        // 非常に大きな差異（60日超）は手動確認が必要
-        console.error('Very large day count difference detected, manual intervention required');
+      // ゲーム進行による日数増加は正常な状態なので、自動修正は行わない
+      // 代わりに、期待される日数との差異が大きすぎる場合のみ警告
+      if (difference > 365) {
+        // 1年を超える差異は異常
+        console.error('Abnormal day count difference detected (over 1 year)');
         console.error('Current state:', {
           gameStateDayCount: this.gameState.dayCount,
           expectedDayCount,
@@ -990,6 +981,15 @@ export class IntegratedGameFlow {
         });
         return false;
       }
+      
+      // 差異が大きい場合は警告のみ（自動修正は行わない）
+      if (difference > 30) {
+        console.warn('Large day count difference detected, but this may be normal game progression');
+      }
+      
+      // 自動修正を行わず、現在の状態を維持
+      console.log('Day count difference detected but not auto-correcting (preserving game progression)');
+      return true;
     }
     
     return true;
@@ -1026,7 +1026,9 @@ export class IntegratedGameFlow {
         startDateLocal: startDate.toLocaleDateString('ja-JP'),
         currentDateLocal: currentDateObj.toLocaleDateString('ja-JP'),
         startDateUTC: startDate.toUTCString(),
-        currentDateUTC: currentDateObj.toUTCString()
+        currentDateUTC: currentDateObj.toUTCString(),
+        inputDate: currentDate,
+        monthAdjustment: currentDate.month - 1
       });
     }
     
@@ -1040,8 +1042,17 @@ export class IntegratedGameFlow {
       const expectedDayCount = this.calculateExpectedDayCount(currentDay);
       
       if (this.gameState.dayCount !== expectedDayCount) {
-        console.log(`日数整合性を同期中: ${this.gameState.dayCount} → ${expectedDayCount}`);
-        this.gameState.dayCount = expectedDayCount;
+        const difference = Math.abs(this.gameState.dayCount - expectedDayCount);
+        
+        // ゲーム進行による日数増加は正常な状態なので、自動同期は行わない
+        if (difference <= 365) {
+          console.log(`日数差異を検出: 期待値=${expectedDayCount}, 実際=${this.gameState.dayCount}, 差異=${difference}日`);
+          console.log('ゲーム進行による正常な差異のため、自動同期は行いません');
+        } else {
+          // 異常に大きな差異の場合のみ同期
+          console.warn(`異常な日数差異を検出: ${this.gameState.dayCount} → ${expectedDayCount}`);
+          this.gameState.dayCount = expectedDayCount;
+        }
       }
     } catch (error) {
       console.warn('日数同期中にエラーが発生しました:', error);

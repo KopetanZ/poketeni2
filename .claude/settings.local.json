@@ -17,7 +17,10 @@
       "WebFetch(domain:www.heita-wakuwaku.com)",
       "WebFetch(domain:note.com)",
       "WebFetch(domain:pokeapi.co)",
-      "WebFetch(domain:appmedia.jp)"
+      "WebFetch(domain:appmedia.jp)",
+      "Bash(npx eslint:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

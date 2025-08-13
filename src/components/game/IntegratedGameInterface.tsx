@@ -21,7 +21,7 @@ import { EvolutionSystem } from '@/lib/evolution-system';
 import { EvolutionModal } from '@/components/evolution/EvolutionModal';
 import { supabase } from '@/lib/supabase';
 import { EventHistoryDisplay } from '../events/EventHistoryDisplay';
-import { BattleSystemDebugger } from '../debug/BattleSystemDebugger';
+// import { BattleSystemDebugger } from '../debug/BattleSystemDebugger';
 
 interface IntegratedGameInterfaceProps {
   initialPlayer: Player;
@@ -85,7 +85,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [showStrategicChoice, setShowStrategicChoice] = useState(false);
   const [showCardResult, setShowCardResult] = useState(false);
   const [showSeasonalEvent, setShowSeasonalEvent] = useState(false);
-  const [showBattleDebugger, setShowBattleDebugger] = useState(false);
+  // const [showBattleDebugger, setShowBattleDebugger] = useState(false);
   
   // 結果データ
   const [lastCardResult, setLastCardResult] = useState<CardUsageResult | null>(null);
@@ -1276,7 +1276,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
               {/* デバッグボタン (開発時のみ表示) */}
               {process.env.NODE_ENV === 'development' && (
                 <button
-                  onClick={() => setShowBattleDebugger(true)}
+                  onClick={() => {/* setShowBattleDebugger(true) */}}
                   className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition-colors"
                 >
                   🧪 デバッグ
@@ -1669,9 +1669,9 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       )}
 
       {/* デバッグモード: 対戦システムテスター */}
-      {showBattleDebugger && (
-        <BattleSystemDebugger onClose={() => setShowBattleDebugger(false)} />
-      )}
+              {/* {showBattleDebugger && (
+          <BattleSystemDebugger onClose={() => setShowBattleDebugger(false)} />
+        )} */}
     </div>
   );
 };
