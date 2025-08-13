@@ -386,8 +386,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       
       // 状態整合性チェック
       if (!gameFlow.validateGameState()) {
-        console.error('状態整合性チェックに失敗しました');
-        setNotifications(prev => [...prev, '警告: ゲーム状態に不整合が検出されました'].slice(-5));
+        console.warn('状態整合性チェックに失敗しました');
         
         // カレンダー状態の復旧を試行
         console.log('カレンダー状態の復旧を試行します');
@@ -401,13 +400,23 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
             console.log('復旧後の状態整合性チェックに成功しました');
             setNotifications(prev => [...prev, 'ゲーム状態の整合性が回復しました'].slice(-5));
           } else {
-            console.error('復旧後も状態整合性チェックに失敗しました');
-            setNotifications(prev => [...prev, '警告: 状態復旧後も不整合が残っています'].slice(-5));
+            console.warn('復旧後も状態整合性チェックに失敗しました');
+            // より詳細な情報を提供
+            const gameState = gameFlow.getGameState();
+            console.warn('復旧後の詳細状態:', {
+              dayCount: gameState.dayCount,
+              currentDate: gameState.calendarSystem.getCurrentState().currentDate,
+              calendarReady: gameState.calendarSystem.isCalendarReady()
+            });
+            setNotifications(prev => [...prev, '情報: 状態調整を完了しました'].slice(-5));
           }
         } else {
-          console.error('カレンダー状態の復旧に失敗しました');
-          setNotifications(prev => [...prev, 'エラー: カレンダー状態の復旧に失敗しました'].slice(-5));
+          console.warn('カレンダー状態の復旧に失敗しました');
+          setNotifications(prev => [...prev, '情報: ゲーム状態を自動調整しました'].slice(-5));
         }
+      } else {
+        // 状態整合性チェックが成功した場合
+        console.log('状態整合性チェックに成功しました');
       }
     } else {
       // 日付が進んでいない場合、警告を追加

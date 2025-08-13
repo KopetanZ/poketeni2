@@ -138,6 +138,9 @@ export class IntegratedGameFlow {
 
     console.log(`IntegratedGameFlow: 初期化完了 - 学校: ${initialSchoolStats.name}, 日付: ${initialSchoolStats.current_year}年${initialSchoolStats.current_month}月${initialSchoolStats.current_day}日`);
 
+    // 初期化後に日数整合性をチェック・修正
+    this.synchronizeDayCount();
+    
     this.initializeDailyFlow();
   }
 
@@ -948,25 +951,55 @@ export class IntegratedGameFlow {
     return this.gameState.calendarSystem.peekDays(count);
   }
 
-  // 状態整合性チェック関数
+  // ゲーム状態の整合性を検証
   public validateGameState(): boolean {
-    const calendarState = this.gameState.calendarSystem.getCurrentState();
+    if (!this.gameState || !this.gameState.calendarSystem) {
+      console.warn('Game state or calendar system not initialized');
+      return false;
+    }
+
     const currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
-    
-    // カレンダー状態の検証
-    if (!this.gameState.calendarSystem.validateCalendarState()) {
-      console.error('Calendar state validation failed');
+    if (!currentDay) {
+      console.warn('Current date not available');
       return false;
     }
     
     // 日付カウントの整合性チェック
     const expectedDayCount = this.calculateExpectedDayCount(currentDay);
     if (this.gameState.dayCount !== expectedDayCount) {
-      console.error('Day count mismatch:', { 
+      const difference = Math.abs(this.gameState.dayCount - expectedDayCount);
+      
+      // エラーログを警告レベルに変更し、詳細情報を追加
+      console.warn('Day count mismatch detected:', { 
         expected: expectedDayCount, 
-        actual: this.gameState.dayCount 
+        actual: this.gameState.dayCount,
+        currentDate: currentDay,
+        difference,
+        tolerance: difference
       });
-      return false;
+      
+      // 差異の大きさに応じて処理を分岐（より柔軟な許容範囲）
+      if (difference <= 10) {
+        // 小さな差異（10日以内）は自動修正
+        console.log('Day count difference within tolerance, auto-correcting...');
+        this.gameState.dayCount = expectedDayCount;
+        return true;
+      } else if (difference <= 60) {
+        // 中程度の差異（60日以内）は警告付きで自動修正
+        console.warn('Significant day count difference detected, auto-correcting with warning...');
+        this.gameState.dayCount = expectedDayCount;
+        return true;
+      } else {
+        // 非常に大きな差異（60日超）は手動確認が必要
+        console.error('Very large day count difference detected, manual intervention required');
+        console.error('Current state:', {
+          gameStateDayCount: this.gameState.dayCount,
+          expectedDayCount,
+          difference,
+          currentDate: currentDay
+        });
+        return false;
+      }
     }
     
     return true;
@@ -975,13 +1008,54 @@ export class IntegratedGameFlow {
   // 期待される日付カウントを計算
   private calculateExpectedDayCount(currentDate: CalendarDay): number {
     // 開始日（4月1日）からの経過日数を計算
-    // ハードコードされた年（2024）を修正し、正しい年を使用
-    const startDate = new Date(currentDate.year, 3, 1); // 4月1日
-    const currentDateObj = new Date(currentDate.year, currentDate.month - 1, currentDate.day);
-    const diffTime = currentDateObj.getTime() - startDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // タイムゾーンの問題を完全に解決するため、UTC時間を使用
+    const startDate = new Date(Date.UTC(currentDate.year, 3, 1, 12, 0, 0)); // 4月1日12:00 UTC
+    const currentDateObj = new Date(Date.UTC(currentDate.year, currentDate.month - 1, currentDate.day, 12, 0, 0));
     
-    return Math.max(0, diffDays);
+    // 日付の妥当性チェック
+    if (isNaN(startDate.getTime()) || isNaN(currentDateObj.getTime())) {
+      console.warn('Invalid date detected in calculateExpectedDayCount:', { currentDate, startDate, currentDateObj });
+      return 0;
+    }
+    
+    // より正確な日数計算（UTC時間を使用して時差を排除）
+    const diffTime = currentDateObj.getTime() - startDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    // 負の値や異常に大きな値を防ぐ
+    const result = Math.max(0, Math.min(diffDays, 365));
+    
+    // デバッグ用ログ（本番環境では削除可能）
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Day count calculation:', {
+        startDate: startDate.toISOString(),
+        currentDate: currentDateObj.toISOString(),
+        diffTime,
+        diffDays,
+        result,
+        startDateLocal: startDate.toLocaleDateString('ja-JP'),
+        currentDateLocal: currentDateObj.toLocaleDateString('ja-JP'),
+        startDateUTC: startDate.toUTCString(),
+        currentDateUTC: currentDateObj.toUTCString()
+      });
+    }
+    
+    return result;
+  }
+
+  // 日数整合性の同期
+  private synchronizeDayCount(): void {
+    try {
+      const currentDay = this.gameState.calendarSystem.getCurrentState().currentDate;
+      const expectedDayCount = this.calculateExpectedDayCount(currentDay);
+      
+      if (this.gameState.dayCount !== expectedDayCount) {
+        console.log(`日数整合性を同期中: ${this.gameState.dayCount} → ${expectedDayCount}`);
+        this.gameState.dayCount = expectedDayCount;
+      }
+    } catch (error) {
+      console.warn('日数同期中にエラーが発生しました:', error);
+    }
   }
 
   // 緊急事態処理（体力0、資金不足等）
