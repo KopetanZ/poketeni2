@@ -33,6 +33,48 @@ export const PLAYER_GROWTH_CONFIG = {
     }
   },
   
+  // 栄冠ナイン式ステータスゲージシステム設定
+  stat_gage_system: {
+    // ゲージ満タン時のステータス上昇量
+    stat_increase_per_gage: 1,
+    
+    // 初期成長効率（設備なし状態）
+    initial_growth_efficiency: {
+      serve_skill: 0.1,      // 非常に低い（初期はほとんど成長しない）
+      return_skill: 0.1,
+      volley_skill: 0.05,    // ボレーは特に難しい
+      stroke_skill: 0.15,    // ストロークは比較的習得しやすい
+      mental: 0.2,           // メンタルは個人差大
+      stamina: 0.25          // スタミナは基礎体力
+    },
+    
+    // 練習でのゲージ上昇量（基本値）
+    practice_gage_gain: {
+      individual_practice: 2,    // 個人練習
+      team_practice: 3,          // チーム練習
+      match_participation: 5,    // 試合参加
+      special_training: 8        // 特別練習
+    },
+    
+    // 設備による成長効率ボーナス
+    facility_bonus: {
+      basic_court: 0.1,          // 基本コート
+      advanced_court: 0.3,       // 上級コート
+      training_equipment: 0.2,   // 練習用具
+      coaching_staff: 0.25,      // コーチ陣
+      medical_support: 0.15      // 医療サポート
+    },
+    
+    // 道具による成長効率ボーナス
+    equipment_bonus: {
+      basic_racket: 0.05,        // 基本ラケット
+      advanced_racket: 0.2,      // 上級ラケット
+      training_shoes: 0.1,       // 練習シューズ
+      sports_drink: 0.05,        // スポーツドリンク
+      recovery_item: 0.1         // 回復アイテム
+    }
+  },
+  
   // 能力値の初期設定（低めスタートで成長実感を強化）
   initial_stats: {
     base_stats: {

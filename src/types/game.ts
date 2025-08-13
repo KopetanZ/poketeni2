@@ -76,6 +76,26 @@ export interface Player {
   mental: number;
   stamina: number;
   
+  // ステータスゲージシステム（栄冠ナイン式）
+  stat_gages: {
+    serve_skill_gage: number;      // サーブスキル成長ゲージ (0-100)
+    return_skill_gage: number;     // リターンスキル成長ゲージ (0-100)
+    volley_skill_gage: number;     // ボレースキル成長ゲージ (0-100)
+    stroke_skill_gage: number;     // ストロークスキル成長ゲージ (0-100)
+    mental_gage: number;           // メンタル成長ゲージ (0-100)
+    stamina_gage: number;          // スタミナ成長ゲージ (0-100)
+  };
+  
+  // 成長効率係数（設備・道具による影響）
+  growth_efficiency: {
+    serve_skill_efficiency: number;    // サーブ練習効率 (0.1-2.0)
+    return_skill_efficiency: number;   // リターン練習効率 (0.1-2.0)
+    volley_skill_efficiency: number;   // ボレー練習効率 (0.1-2.0)
+    stroke_skill_efficiency: number;   // ストローク練習効率 (0.1-2.0)
+    mental_efficiency: number;         // メンタル練習効率 (0.1-2.0)
+    stamina_efficiency: number;        // スタミナ練習効率 (0.1-2.0)
+  };
+  
   // 状態
   condition: 'excellent' | 'good' | 'normal' | 'poor' | 'terrible';
   motivation: number;

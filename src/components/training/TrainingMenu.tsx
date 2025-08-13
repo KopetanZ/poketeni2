@@ -5,6 +5,7 @@ import { Player } from '@/types/game';
 import { ExperienceBalanceSystem, ExperienceHelpers } from '@/lib/experience-balance-system';
 import { EvolutionSystem } from '@/lib/evolution-system';
 import { EvolutionModal } from '@/components/evolution/EvolutionModal';
+import { GameBalanceManager } from '@/lib/game-balance-manager';
 import { supabase } from '@/lib/supabase';
 import { Timer, Zap, Brain, Heart, Star, Users } from 'lucide-react';
 
@@ -99,6 +100,14 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
     setIsTraining(true);
 
     try {
+      // 栄冠ナイン式ステータスゲージシステム処理
+      const targetSkills = getTargetSkillsForTraining(trainingType.id);
+      const gageResult = GameBalanceManager.processPracticeGageGain(
+        player,
+        getPracticeType(trainingType.id),
+        targetSkills
+      );
+
       // 経験値獲得の試行
       const expResult = ExperienceBalanceSystem.gainExperienceFromTraining(
         player,
@@ -114,9 +123,19 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
       // プレイヤーに経験値適用
       const updatedPlayer = ExperienceBalanceSystem.applyExperienceGain(player, expResult.exp_gained);
       
+      // ステータスゲージとステータス上昇を適用
+      const playerWithGages = {
+        ...updatedPlayer,
+        stat_gages: {
+          ...(updatedPlayer.stat_gages || {}),
+          ...gageResult.gageGains
+        },
+        ...gageResult.statIncreases
+      };
+      
       // 追加の練習効果（基本ステータス微調整）
-      const trainingEffects = getTrainingEffects(trainingType.id, updatedPlayer);
-      const finalPlayer = { ...updatedPlayer, ...trainingEffects };
+      const trainingEffects = getTrainingEffects(trainingType.id, playerWithGages);
+      const finalPlayer = { ...playerWithGages, ...trainingEffects };
 
       // 資金減少
       setFunds(prev => prev - trainingType.cost);
@@ -137,7 +156,10 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
             stamina: finalPlayer.stamina,
             motivation: finalPlayer.motivation,
             experience: finalPlayer.experience,
-            level: finalPlayer.level
+            level: finalPlayer.level,
+            // ステータスゲージも保存（JSONとして）
+            stat_gages: finalPlayer.stat_gages,
+            growth_efficiency: finalPlayer.growth_efficiency
           })
           .eq('id', finalPlayer.id);
       } catch (e) {
@@ -147,14 +169,32 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
       onPlayerUpdate(finalPlayer);
       setTodayProgress(ExperienceHelpers.getTodayProgress());
 
-      // 成功通知
+      // 成功通知（ステータスゲージ情報も含める）
       const messages = [
         `${trainingType.name}を実施しました`,
         `経験値 +${expResult.exp_gained}`,
         trainingType.cost > 0 ? `費用: -${trainingType.cost}円` : null
-      ].filter(Boolean);
+      ];
 
-      alert(messages.join('\n'));
+      // ステータス上昇があった場合の通知
+      const statIncreases = Object.keys(gageResult.statIncreases);
+      if (statIncreases.length > 0) {
+        messages.push(`🎉 ステータス上昇: ${statIncreases.join(', ')}`);
+      }
+
+      // ゲージ進行状況の通知
+      const gageProgress = Object.entries(gageResult.gageGains)
+        .filter(([_, value]) => value > 0)
+        .map(([key, value]) => {
+          const skillName = key.replace('_gage', '').replace(/_/g, ' ');
+          return `${skillName}: +${value}`;
+        });
+      
+      if (gageProgress.length > 0) {
+        messages.push(`⚡ ゲージ進行: ${gageProgress.join(', ')}`);
+      }
+
+      alert(messages.filter(Boolean).join('\n'));
 
       // レベルアップ通知 + 進化判定
       if ((finalPlayer as any).leveledUp) {
@@ -171,6 +211,39 @@ export default function TrainingMenu({ player, onPlayerUpdate, onClose }: Traini
       alert('練習中にエラーが発生しました');
     } finally {
       setIsTraining(false);
+    }
+  };
+
+  // 練習タイプに応じた対象スキルを取得
+  const getTargetSkillsForTraining = (trainingType: string): Array<keyof Player['stat_gages']> => {
+    switch (trainingType) {
+      case 'basic':
+        return ['serve_skill', 'return_skill', 'stroke_skill', 'volley_skill', 'mental', 'stamina'];
+      case 'technical':
+        return ['stroke_skill', 'volley_skill'];
+      case 'mental':
+        return ['mental'];
+      case 'stamina':
+        return ['stamina'];
+      case 'special':
+        return ['serve_skill', 'return_skill', 'stroke_skill', 'volley_skill', 'mental', 'stamina'];
+      default:
+        return ['serve_skill', 'return_skill', 'stroke_skill', 'volley_skill', 'mental', 'stamina'];
+    }
+  };
+
+  // 練習タイプを栄冠ナイン式の練習タイプに変換
+  const getPracticeType = (trainingType: string): 'individual' | 'team' | 'match' | 'special' => {
+    switch (trainingType) {
+      case 'basic':
+      case 'technical':
+      case 'mental':
+      case 'stamina':
+        return 'individual';
+      case 'special':
+        return 'special';
+      default:
+        return 'individual';
     }
   };
 

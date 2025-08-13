@@ -16,7 +16,7 @@ interface PokemonStatsViewerProps {
 }
 
 export default function PokemonStatsViewer({ player, onClose, onLevelUp, onEvolve }: PokemonStatsViewerProps) {
-  const [activeTab, setActiveTab] = useState<'stats' | 'growth' | 'judge' | 'ability'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'growth' | 'judge' | 'ability' | 'gage'>('stats');
   const [showEvolutionConfirm, setShowEvolutionConfirm] = useState(false);
   const [showEVTrainer, setShowEVTrainer] = useState(false);
   const pokemonStats = player.pokemon_stats;
@@ -212,6 +212,14 @@ export default function PokemonStatsViewer({ player, onClose, onLevelUp, onEvolv
           >
             ✨ 特性・性格
           </button>
+          <button
+            onClick={() => setActiveTab('gage')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'gage' ? 'bg-white text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            🎮 成長ゲージ
+          </button>
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
@@ -316,63 +324,104 @@ export default function PokemonStatsViewer({ player, onClose, onLevelUp, onEvolv
                 </div>
 
                 <div className="bg-purple-50 rounded-xl p-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">🌟 進化</h3>
-                  {(() => {
-                    const evolutionInfo = getEvolutionInfo(pokemonStats.pokemon_id);
-                    const canEvolveNow = canEvolve(pokemonStats.pokemon_id, pokemonStats.level);
-                    
-                    if (!evolutionInfo) {
-                      return (
-                        <>
-                          <p className="text-gray-600 mb-4">
-                            このポケモンはこれ以上進化しません
-                          </p>
-                          <button
-                            disabled={true}
-                            className="w-full bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg cursor-not-allowed"
-                          >
-                            🔒 進化なし
-                          </button>
-                        </>
-                      );
-                    }
-                    
-                    if (!canEvolveNow) {
-                      return (
-                        <>
-                          <p className="text-gray-600 mb-2">
-                            <strong>{evolutionInfo.evolve_name}</strong>に進化可能
-                          </p>
-                          <p className="text-sm text-gray-500 mb-4">
-                            進化条件: レベル{evolutionInfo.level}以上 (現在: Lv.{pokemonStats.level})
-                          </p>
-                          <button
-                            disabled={true}
-                            className="w-full bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg cursor-not-allowed"
-                          >
-                            🔒 進化条件未達成
-                          </button>
-                        </>
-                      );
-                    }
-                    
-                    return (
-                      <>
-                        <p className="text-green-600 font-semibold mb-2">
-                          <strong>{evolutionInfo.evolve_name}</strong>に進化可能！
-                        </p>
-                        <p className="text-sm text-gray-600 mb-4">
-                          進化すると種族値が向上し、より強力なテニス選手になります
-                        </p>
-                        <button
-                          onClick={() => setShowEvolutionConfirm(true)}
-                          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                        >
-                          🌟 進化させる
-                        </button>
-                      </>
-                    );
-                  })()}
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">🎯 進化チェック</h3>
+                  <p className="text-gray-600 mb-4">
+                    進化条件を満たしているかチェックします
+                  </p>
+                  <button
+                    onClick={() => setShowEvolutionConfirm(true)}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    🔍 進化条件チェック
+                  </button>
+                </div>
+              </div>
+
+              {/* 栄冠ナイン式ステータスゲージシステム */}
+              <div className="bg-blue-50 rounded-xl p-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">🎮 栄冠ナイン式成長システム</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* 成長効率表示 */}
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-700 mb-3">📊 成長効率</h4>
+                    {player.growth_efficiency && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">サーブ練習:</span>
+                          <span className="text-sm font-medium">
+                            {(player.growth_efficiency.serve_skill_efficiency * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">リターン練習:</span>
+                          <span className="text-sm font-medium">
+                            {(player.growth_efficiency.return_skill_efficiency * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">ボレー練習:</span>
+                          <span className="text-sm font-medium">
+                            {(player.growth_efficiency.volley_skill_efficiency * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">ストローク練習:</span>
+                          <span className="text-sm font-medium">
+                            {(player.growth_efficiency.stroke_skill_efficiency * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">メンタル練習:</span>
+                          <span className="text-sm font-medium">
+                            {(player.growth_efficiency.mental_efficiency * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">スタミナ練習:</span>
+                          <span className="text-sm font-medium">
+                            {(player.growth_efficiency.stamina_efficiency * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ステータスゲージ表示 */}
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-700 mb-3">⚡ 成長ゲージ</h4>
+                    {player.stat_gages && (
+                      <div className="space-y-3">
+                        {Object.entries(player.stat_gages).map(([gageKey, gageValue]) => {
+                          const skillName = gageKey.replace('_gage', '').replace(/_/g, ' ');
+                          const skillDisplayName = skillName.split(' ').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                          ).join(' ');
+                          
+                          return (
+                            <div key={gageKey} className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">{skillDisplayName}:</span>
+                                <span className="text-sm font-medium">{gageValue}/100</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                                  style={{ width: `${gageValue}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    💡 <strong>栄冠ナイン式システム:</strong> 練習でゲージが蓄積され、ゲージが満タンになるとステータスが1上昇します。
+                    初期状態では成長効率が非常に低く、設備投資により徐々に向上していきます。
+                  </p>
                 </div>
               </div>
             </div>
@@ -624,6 +673,79 @@ export default function PokemonStatsViewer({ player, onClose, onLevelUp, onEvolv
                         </div>
                       );
                     })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ステータスゲージ専用タブ */}
+          {activeTab === 'gage' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6">
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">🎮 栄冠ナイン式成長システム</h3>
+                
+                {/* 成長効率サマリー */}
+                <div className="bg-white rounded-lg p-4 mb-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-3">📊 現在の成長効率</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {player.growth_efficiency && Object.entries(player.growth_efficiency).map(([key, value]) => {
+                      const skillName = key.replace('_efficiency', '').replace(/_/g, ' ');
+                      const displayName = skillName.split(' ').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                      ).join(' ');
+                      
+                      let efficiencyColor = 'text-gray-500';
+                      if (value >= 1.5) efficiencyColor = 'text-green-600';
+                      else if (value >= 1.0) efficiencyColor = 'text-blue-600';
+                      else if (value >= 0.6) efficiencyColor = 'text-yellow-600';
+                      else if (value >= 0.3) efficiencyColor = 'text-orange-600';
+                      else efficiencyColor = 'text-red-600';
+                      
+                      return (
+                        <div key={key} className="text-center">
+                          <div className={`text-lg font-bold ${efficiencyColor}`}>
+                            {(value * 100).toFixed(0)}%
+                          </div>
+                          <div className="text-xs text-gray-600">{displayName}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ステータスゲージ詳細 */}
+                <div className="bg-white rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-4">⚡ 各スキルの成長ゲージ</h4>
+                  <div className="space-y-4">
+                    {player.stat_gages && Object.entries(player.stat_gages).map(([gageKey, gageValue]) => {
+                      const skillName = gageKey.replace('_gage', '').replace(/_/g, ' ');
+                      const skillDisplayName = skillName.split(' ').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                      ).join(' ');
+                      
+                      const currentStat = player[skillName.replace(/_/g, '') as keyof Pick<Player, 'serve_skill' | 'return_skill' | 'volley_skill' | 'stroke_skill' | 'mental' | 'stamina'>] || 0;
+                      
+                      return (
+                        <div key={gageKey} className="border rounded-lg p-3">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium text-gray-700">{skillDisplayName}</span>
+                            <span className="text-sm text-gray-500">
+                              現在: {currentStat} | ゲージ: {gageValue}/100
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div 
+                              className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500" 
+                              style={{ width: `${gageValue}%` }}
+                            ></div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            {gageValue >= 100 ? '🎉 ゲージ満タン！ステータス上昇可能' : '練習を続けてゲージをためよう'}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
