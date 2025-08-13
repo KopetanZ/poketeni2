@@ -140,19 +140,25 @@ export class RivalSchoolGenerator {
     
     // 学校タイプに基づいて戦術を追加
     switch (schoolType) {
-      case 'aggressive':
+      case 'power':
         baseTactics.push('aggressive', 'power');
         break;
       case 'technical':
         baseTactics.push('technical', 'balanced');
         break;
-      case 'power':
-        baseTactics.push('power', 'aggressive');
+      case 'balanced':
+        baseTactics.push('balanced', 'technical');
         break;
-      case 'defensive':
+      case 'traditional':
         baseTactics.push('defensive', 'counter');
         break;
-      case 'balanced':
+      case 'emerging':
+        baseTactics.push('aggressive', 'balanced');
+        break;
+      case 'specialized':
+        baseTactics.push('technical', 'power');
+        break;
+      case 'academy':
         baseTactics.push('balanced', 'technical');
         break;
     }

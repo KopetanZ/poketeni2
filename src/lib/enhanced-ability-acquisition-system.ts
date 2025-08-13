@@ -46,7 +46,7 @@ export class EnhancedAbilityAcquisitionSystem {
     additionalData?: any
   ): Promise<AcquisitionResult> {
     
-    const ability = getAbilityById(abilityId);
+    const ability = ENHANCED_TENNIS_SPECIAL_ABILITIES.find(a => a.id === abilityId);
     if (!ability) {
       return {
         success: false,
@@ -139,7 +139,7 @@ export class EnhancedAbilityAcquisitionSystem {
     }
 
     // 結果の特殊能力を取得
-    const resultAbility = getAbilityById(combination.resultAbility);
+    const resultAbility = ENHANCED_TENNIS_SPECIAL_ABILITIES.find(a => a.id === combination.resultAbility);
     if (!resultAbility) {
       return {
         success: false,

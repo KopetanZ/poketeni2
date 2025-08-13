@@ -239,6 +239,11 @@ export interface EnhancedSpecialAbility {
   version?: string;
   rarityWeight?: number;
   powerLevel?: number;
+  
+  // 査定・評価用
+  virtual_stats?: Record<string, number>;
+  assessment_value?: number;
+  type?: TennisAbilityCategory; // 後方互換性のため
 }
 
 // 既存の特殊能力インターフェース（後方互換性のため保持）
@@ -672,8 +677,8 @@ export class EnhancedSpecialAbilityCalculator {
 export class SpecialAbilityCalculator {
   // 既存のメソッドはそのまま
   static calculateStatBonus(
-    abilities: SpecialAbility[], 
-    statType: keyof SpecialAbilityEffects,
+    abilities: EnhancedSpecialAbility[], 
+    statType: keyof EnhancedSpecialAbilityEffects,
     situation?: {
       isBehind?: boolean;
       isAhead?: boolean;
@@ -729,8 +734,8 @@ export class SpecialAbilityCalculator {
 
   // 特殊効果の計算（クリティカル率、エラー軽減率など）
   static calculateSpecialEffect(
-    abilities: SpecialAbility[],
-    effectType: keyof SpecialAbilityEffects
+    abilities: EnhancedSpecialAbility[],
+    effectType: string
   ): number {
     let totalEffect = 0;
 
@@ -738,8 +743,20 @@ export class SpecialAbilityCalculator {
       if (!ability.isActive) return;
 
       const effects = ability.effects;
-      if (effectType in effects && typeof effects[effectType] === 'number') {
-        totalEffect += effects[effectType] as number;
+      
+      // 直接のプロパティをチェック
+      if (effectType in effects && typeof effects[effectType as keyof EnhancedSpecialAbilityEffects] === 'number') {
+        totalEffect += effects[effectType as keyof EnhancedSpecialAbilityEffects] as number;
+      }
+      
+      // specialEffects内のプロパティをチェック
+      if (effects.specialEffects && effectType in effects.specialEffects && typeof effects.specialEffects[effectType as keyof typeof effects.specialEffects] === 'number') {
+        totalEffect += effects.specialEffects[effectType as keyof typeof effects.specialEffects] as number;
+      }
+      
+      // situationalEffects内のプロパティをチェック
+      if (effects.situationalEffects && effectType in effects.situationalEffects && typeof effects.situationalEffects[effectType as keyof typeof effects.situationalEffects] === 'number') {
+        totalEffect += effects.situationalEffects[effectType as keyof typeof effects.situationalEffects] as number;
       }
     });
 

@@ -111,9 +111,10 @@ export default function RecruitmentInterface() {
       }
     } catch (error) {
       console.error('配属処理エラー:', error);
+      const errorMessage = error instanceof Error ? error.message : '不明なエラー';
       setRecruitmentResult({
         success: false,
-        message: `配属処理でエラーが発生しました: ${error.message}`
+        message: `配属処理でエラーが発生しました: ${errorMessage}`
       });
     } finally {
       setLoading(false);

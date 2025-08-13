@@ -100,7 +100,7 @@ export function getEvolutionData(pokemonId: number): any {
 
 // 特殊能力付与システム
 export function assignRandomAbilities(
-  pokemon: Partial<PokemonMember>, 
+  pokemon: { skills?: any }, 
   rarity: string
 ): string[] {
   const rates = ABILITY_ASSIGNMENT_RATES[rarity as keyof typeof ABILITY_ASSIGNMENT_RATES];
@@ -146,7 +146,7 @@ function determineAbilityType(rates: any): string {
 }
 
 // 能力付与条件チェック
-function meetsAssignmentConditions(pokemon: Partial<PokemonMember>, ability: any): boolean {
+function meetsAssignmentConditions(pokemon: { skills?: any }, ability: any): boolean {
   // 能力の付与条件をチェック
   // 実際の実装ではより詳細な条件チェックが必要
   return true; // 仮実装
@@ -261,10 +261,11 @@ export async function recruitNewMember(
     };
     
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '不明なエラー';
     return {
       success: false,
-      message: `配属処理でエラーが発生しました: ${error.message}`,
-      errors: [error.message]
+      message: `配属処理でエラーが発生しました: ${errorMessage}`,
+      errors: [errorMessage]
     };
   }
 }
@@ -282,7 +283,8 @@ export async function getRecruitablePokemon(supabase: any) {
     
     return { success: true, data, error: null };
   } catch (error) {
-    return { success: false, data: null, error: error.message };
+    const errorMessage = error instanceof Error ? error.message : '不明なエラー';
+    return { success: false, data: null, error: errorMessage };
   }
 }
 
@@ -302,7 +304,8 @@ export async function getPokemonDetails(pokemonId: number, supabase: any) {
     
     return { success: true, data, error: null };
   } catch (error) {
-    return { success: false, data: null, error: error.message };
+    const errorMessage = error instanceof Error ? error.message : '不明なエラー';
+    return { success: false, data: null, error: errorMessage };
   }
 }
 

@@ -9,11 +9,15 @@ import CardUsageResultModal from './CardUsageResultModal';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { handCardsManager } from '../../lib/hand-cards-manager';
+import { gameProgressManager } from '../../lib/game-progress-manager';
 
 interface CardSelectionInterfaceProps {
   player: Player;
   schoolFunds: number;
   schoolReputation: number;
+  schoolId: string; // 学校IDを追加
+  currentDate: { year: number; month: number; day: number }; // 現在の日付を追加
   onCardUse?: (result: CardUsageResult) => void;
   onStatsUpdate?: (player: Player) => void;
 }
@@ -22,14 +26,16 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
   player,
   schoolFunds,
   schoolReputation,
+  schoolId,
+  currentDate,
   onCardUse,
   onStatsUpdate
 }) => {
   const [availableCards, setAvailableCards] = useState<TrainingCard[]>([]);
   const [selectedCard, setSelectedCard] = useState<TrainingCard | null>(null);
   const [usageResult, setUsageResult] = useState<CardUsageResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
-  const [dailyCardsGenerated, setDailyCardsGenerated] = useState(false);
 
   // プレイヤーステータス変換
   const getPlayerStats = () => ({
@@ -43,30 +49,69 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
     mental: player.mental || 0
   });
 
-  // 初期化時に基本カードを設定
+  // 初期化時にデータベースからカードを読み込み
   useEffect(() => {
-    if (!dailyCardsGenerated) {
-      generateDailyCards();
-    }
-  }, [dailyCardsGenerated]);
+    loadHandCards();
+  }, [schoolId, currentDate.year, currentDate.month, currentDate.day]);
 
-  // 日次カード生成
-  const generateDailyCards = async () => {
+  // 手札カードの読み込み
+  const loadHandCards = async () => {
+    setIsLoading(true);
+    try {
+      // データベースから手札を読み込み
+      let cards = await handCardsManager.getHandCards(schoolId);
+      
+      // 手札が空の場合、または日次リセットが必要な場合は新しいカードを生成
+      if (cards.length === 0 || await gameProgressManager.shouldResetDaily(
+        schoolId, 
+        currentDate.year, 
+        currentDate.month, 
+        currentDate.day
+      )) {
+        cards = await handCardsManager.generateAndSaveDailyCards(
+          schoolId,
+          schoolReputation,
+          player.level || 1,
+          currentDate.year,
+          currentDate.month,
+          currentDate.day
+        );
+      }
+      
+      setAvailableCards(cards);
+    } catch (error) {
+      console.error('Failed to load hand cards:', error);
+      // エラーの場合はフォールバックとしてカードを生成
+      const fallbackCards = TrainingCardSystem.generateCardDrop(
+        schoolReputation,
+        player.level || 1,
+        5,
+        'daily_practice'
+      ).cards;
+      setAvailableCards(fallbackCards);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 手動でカードを更新（デバッグ用）
+  const refreshCards = async () => {
     setIsGeneratingCards(true);
-    
-    // アニメーション用遅延
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const cardDrop = TrainingCardSystem.generateCardDrop(
-      schoolReputation,
-      player.level || 1,
-      5, // 1日5枚のカード
-      'daily_practice'
-    );
-    
-    setAvailableCards(cardDrop.cards);
-    setDailyCardsGenerated(true);
-    setIsGeneratingCards(false);
+    try {
+      const cards = await handCardsManager.generateAndSaveDailyCards(
+        schoolId,
+        schoolReputation,
+        player.level || 1,
+        currentDate.year,
+        currentDate.month,
+        currentDate.day
+      );
+      setAvailableCards(cards);
+    } catch (error) {
+      console.error('Failed to refresh cards:', error);
+    } finally {
+      setIsGeneratingCards(false);
+    }
   };
 
   // カード使用処理
@@ -116,17 +161,40 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
       onStatsUpdate(updatedPlayer);
     }
 
+    // データベースからカードを削除し、履歴に記録
+    try {
+      await handCardsManager.useCard(
+        schoolId,
+        card,
+        player.id,
+        await getCurrentPosition(), // 現在のすごろく位置を取得
+        result.actualEffects
+      );
+      
+      // ローカル状態も更新
+      setAvailableCards(prev => prev.filter(c => c.id !== card.id));
+    } catch (error) {
+      console.error('Failed to record card usage:', error);
+    }
+
     // 結果表示
     setUsageResult(result);
-    
     onCardUse?.(result);
+  };
 
-    // 使用したカードを一時的に除去
-    setAvailableCards(prev => prev.filter(c => c.id !== card.id));
+  // 現在のすごろく位置を取得
+  const getCurrentPosition = async (): Promise<number> => {
+    try {
+      const progress = await gameProgressManager.getGameProgress(schoolId);
+      return progress?.current_position || 0;
+    } catch (error) {
+      console.error('Failed to get current position:', error);
+      return 0;
+    }
   };
 
   // カード追加（特別な報酬等）
-  const handleSpecialCardReward = (context: 'event_reward' | 'reputation_bonus') => {
+  const handleSpecialCardReward = async (context: 'event_reward' | 'reputation_bonus') => {
     const specialDrop = TrainingCardSystem.generateCardDrop(
       schoolReputation,
       player.level || 1,
@@ -134,6 +202,12 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
       context
     );
     
+    // データベースに保存
+    for (const card of specialDrop.cards) {
+      await handCardsManager.addCard(schoolId, card);
+    }
+    
+    // ローカル状態も更新
     setAvailableCards(prev => [...prev, ...specialDrop.cards]);
   };
 
@@ -146,6 +220,19 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
     if (filterCategory !== 'all' && card.category !== filterCategory) return false;
     return true;
   });
+
+  // ローディング中の表示
+  if (isLoading) {
+    return (
+      <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+        <CardContent className="p-8 text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
+          <h3 className="text-xl font-bold">手札を読み込み中...</h3>
+          <p className="text-blue-100 mt-2">データベースから情報を取得しています</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -228,12 +315,12 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
             </div>
 
             <Button
-              onClick={generateDailyCards}
+              onClick={refreshCards}
               disabled={isGeneratingCards}
               variant="outline"
               size="sm"
             >
-              {isGeneratingCards ? '生成中...' : 'カード更新'}
+              {isGeneratingCards ? '更新中...' : 'カード更新'}
             </Button>
           </div>
         </CardContent>
@@ -244,8 +331,8 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
         <Card className="bg-gradient-to-r from-purple-400 to-pink-500 text-white">
           <CardContent className="p-8 text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
-            <h3 className="text-xl font-bold">本日の練習カード生成中...</h3>
-            <p className="text-purple-100 mt-2">あなたの実力と学校の評判を分析しています</p>
+            <h3 className="text-xl font-bold">練習カード更新中...</h3>
+            <p className="text-purple-100 mt-2">新しいカードを生成しています</p>
           </CardContent>
         </Card>
       )}
@@ -270,7 +357,7 @@ export const CardSelectionInterface: React.FC<CardSelectionInterfaceProps> = ({
             <p className="text-gray-500 mb-6">
               新しい練習カードを入手するか、フィルターを変更してください
             </p>
-            <Button onClick={generateDailyCards} disabled={isGeneratingCards}>
+            <Button onClick={refreshCards} disabled={isGeneratingCards}>
               新しいカードを生成
             </Button>
           </CardContent>

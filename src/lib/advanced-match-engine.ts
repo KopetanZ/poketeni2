@@ -404,7 +404,7 @@ export class AdvancedMatchEngine {
     };
 
     // スキルタイプに応じたボーナス計算
-    const skillMap: { [key: string]: keyof import('@/types/special-abilities').SpecialAbilityEffects } = {
+    const skillMap: { [key: string]: keyof import('@/types/special-abilities').EnhancedSpecialAbilityEffects } = {
       'serve': 'serveBoost',
       'return': 'returnBoost', 
       'volley': 'volleyBoost',

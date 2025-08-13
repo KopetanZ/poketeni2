@@ -17,7 +17,7 @@ const BATCH_SIZE = 20; // バッチ処理サイズ
 const DELAY_BETWEEN_BATCHES = 1000; // バッチ間の遅延（ミリ秒）
 
 // レアリティ判定ロジック
-function determineRarity(baseStats, types, evolutionStage) {
+function determineRarity(baseStats, types) {
   const totalStats = Object.values(baseStats).reduce((sum, stat) => sum + stat, 0);
   
   // 伝説・幻のポケモン判定（IDベース）
@@ -135,8 +135,57 @@ async function fetchPokemonData(pokemonId) {
     // 8. 配属可能判定
     const recruitable = isRecruitable(evolutionStage, rarity);
     
-    // 9. 世代判定
-    const generation = parseInt(speciesData.generation.name.replace('generation-', ''));
+    // 9. 世代判定（安全な処理）
+    let generation = 1; // デフォルト値
+    
+    try {
+      if (speciesData.generation && speciesData.generation.name) {
+        const generationMatch = speciesData.generation.name.match(/generation-(\d+)/);
+        if (generationMatch) {
+          generation = parseInt(generationMatch[1]);
+        } else {
+          // 世代名が予期しない形式の場合、IDから推定
+          if (pokemonId <= 151) generation = 1;
+          else if (pokemonId <= 251) generation = 2;
+          else if (pokemonId <= 386) generation = 3;
+          else if (pokemonId <= 493) generation = 4;
+          else if (pokemonId <= 649) generation = 5;
+          else if (pokemonId <= 721) generation = 6;
+          else if (pokemonId <= 809) generation = 7;
+          else if (pokemonId <= 905) generation = 8;
+          else generation = 9;
+        }
+      } else {
+        // 世代情報が存在しない場合、IDから推定
+        if (pokemonId <= 151) generation = 1;
+        else if (pokemonId <= 251) generation = 2;
+        else if (pokemonId <= 386) generation = 3;
+        else if (pokemonId <= 493) generation = 4;
+        else if (pokemonId <= 649) generation = 5;
+        else if (pokemonId <= 721) generation = 6;
+        else if (pokemonId <= 809) generation = 7;
+        else if (pokemonId <= 905) generation = 8;
+        else generation = 9;
+      }
+    } catch (error) {
+      console.warn(`⚠️ ポケモンID ${pokemonId} の世代判定でエラー: ${error.message}`);
+      // エラーが発生した場合もIDから推定
+      if (pokemonId <= 151) generation = 1;
+      else if (pokemonId <= 251) generation = 2;
+      else if (pokemonId <= 386) generation = 3;
+      else if (pokemonId <= 493) generation = 4;
+      else if (pokemonId <= 649) generation = 5;
+      else if (pokemonId <= 721) generation = 6;
+      else if (pokemonId <= 809) generation = 7;
+      else if (pokemonId <= 905) generation = 8;
+      else generation = 9;
+    }
+    
+    // 世代値の検証
+    if (isNaN(generation) || generation < 1 || generation > 9) {
+      console.warn(`⚠️ ポケモンID ${pokemonId} の世代値が不正: ${generation}, デフォルト値1を使用`);
+      generation = 1;
+    }
     
     // 10. スプライトURL取得
     const spriteUrls = {
@@ -144,18 +193,30 @@ async function fetchPokemonData(pokemonId) {
       official: pokemonData.sprites.other['official-artwork']?.front_default || pokemonData.sprites.front_default
     };
     
-    return {
+    // データの最終検証
+    const pokemonRecord = {
       pokemon_id: pokemonId,
-      japanese_name: japaneseName,
-      english_name: pokemonData.name,
-      types: pokemonData.types.map(t => t.type.name),
+      japanese_name: japaneseName || `Pokemon_${pokemonId}`,
+      english_name: pokemonData.name || `pokemon_${pokemonId}`,
+      types: pokemonData.types.map(t => t.type.name) || ['normal'],
       base_stats: baseStats,
       sprite_urls: spriteUrls,
-      rarity_level: rarity,
+      rarity_level: rarity || 'common',
       generation: generation,
-      is_recruitable: recruitable,
-      evolution_chain: evolutionChain
+      is_recruitable: recruitable !== undefined ? recruitable : true,
     };
+    
+    // 必須フィールドの検証
+    if (!pokemonRecord.japanese_name || !pokemonRecord.english_name || 
+        !pokemonRecord.types || pokemonRecord.types.length === 0 ||
+        !pokemonRecord.base_stats || !pokemonRecord.sprite_urls ||
+        !pokemonRecord.rarity_level || !pokemonRecord.generation ||
+        pokemonRecord.is_recruitable === undefined) {
+      console.warn(`⚠️ ポケモンID ${pokemonId} のデータが不完全:`, pokemonRecord);
+      return null;
+    }
+    
+    return pokemonRecord;
     
   } catch (error) {
     console.error(`❌ ポケモンID ${pokemonId} のデータ取得エラー:`, error.message);
@@ -192,8 +253,9 @@ async function insertEvolutionChains(pokemonDataArray) {
     const evolutionData = [];
     
     for (const pokemon of pokemonDataArray) {
-      if (pokemon.evolution_chain && pokemon.evolution_chain.chain) {
-        const chain = pokemon.evolution_chain.chain;
+      // evolution_chainは別途取得したデータを使用
+      if (pokemon.evolutionChain && pokemon.evolutionChain.chain) {
+        const chain = pokemon.evolutionChain.chain;
         
         // 進化チェーンの解析
         let stage = 1;
@@ -280,24 +342,46 @@ async function syncAllPokemon() {
       const batchResults = await Promise.all(batchPromises);
       const validResults = batchResults.filter(result => result !== null);
       
-      if (validResults.length > 0) {
-        try {
+      // データの検証
+      if (validResults.length === 0) {
+        console.warn(`⚠️ バッチ ${batchStart}-${batchEnd}: 有効なデータがありません`);
+        continue;
+      }
+      
+      // 必須フィールドの最終チェック
+      const validatedResults = validResults.filter(result => {
+        if (!result.generation || isNaN(result.generation)) {
+          console.warn(`⚠️ ポケモンID ${result.pokemon_id}: 世代値が不正: ${result.generation}`);
+          return false;
+        }
+        if (!result.rarity_level) {
+          console.warn(`⚠️ ポケモンID ${result.pokemon_id}: レアリティが不正: ${result.rarity_level}`);
+          return false;
+        }
+        return true;
+      });
+      
+      if (validatedResults.length === 0) {
+        console.warn(`⚠️ バッチ ${batchStart}-${batchEnd}: 検証済みデータがありません`);
+        continue;
+      }
+      
+              try {
           // ポケモンデータをデータベースに挿入
-          await insertPokemonBatch(validResults);
+          await insertPokemonBatch(validatedResults);
           
           // 進化チェーンデータを挿入
-          await insertEvolutionChains(validResults);
+          await insertEvolutionChains(validatedResults);
           
-          successCount += validResults.length;
-          processedCount += validResults.length;
+          successCount += validatedResults.length;
+          processedCount += validatedResults.length;
           
-          console.log(`✅ バッチ ${batchStart}-${batchEnd} 完了: ${validResults.length}件成功`);
+          console.log(`✅ バッチ ${batchStart}-${batchEnd} 完了: ${validatedResults.length}件成功`);
           
         } catch (error) {
           console.error(`❌ バッチ ${batchStart}-${batchEnd} エラー:`, error.message);
-          errorCount += validResults.length;
+          errorCount += validatedResults.length;
         }
-      }
       
       // 進捗表示
       const progress = Math.round((processedCount / TOTAL_POKEMON) * 100);

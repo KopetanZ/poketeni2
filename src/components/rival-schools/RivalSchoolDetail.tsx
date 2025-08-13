@@ -10,7 +10,7 @@ interface RivalSchoolDetailProps {
 
 export const RivalSchoolDetail: React.FC<RivalSchoolDetailProps> = ({ school, onClose }) => {
   const getRankColor = (rank: string): string => {
-    const colors = {
+    const colors: Record<string, string> = {
       'S++': 'text-red-600',
       'S+': 'text-red-500',
       'S': 'text-orange-500',
@@ -23,7 +23,7 @@ export const RivalSchoolDetail: React.FC<RivalSchoolDetailProps> = ({ school, on
   };
 
   const getTypeColor = (type: string): string => {
-    const colors = {
+    const colors: Record<string, string> = {
       'traditional': 'bg-blue-100 text-blue-800',
       'emerging': 'bg-green-100 text-green-800',
       'technical': 'bg-purple-100 text-purple-800',
@@ -45,7 +45,7 @@ export const RivalSchoolDetail: React.FC<RivalSchoolDetailProps> = ({ school, on
   };
 
   const getInjuryColor = (impact: string): string => {
-    const colors = {
+    const colors: Record<string, string> = {
       'low': 'text-green-600',
       'medium': 'text-yellow-600',
       'high': 'text-red-600'
@@ -336,7 +336,7 @@ export const RivalSchoolDetail: React.FC<RivalSchoolDetailProps> = ({ school, on
 
 // ヘルパー関数
 const getTypeLabel = (type: string): string => {
-  const labels = {
+  const labels: Record<string, string> = {
     'traditional': '伝統校',
     'emerging': '新興校',
     'technical': '技術校',
@@ -349,7 +349,7 @@ const getTypeLabel = (type: string): string => {
 };
 
 const getTacticLabel = (tactic: string): string => {
-  const labels = {
+  const labels: Record<string, string> = {
     'aggressive': '攻撃的',
     'defensive': '守備的',
     'balanced': 'バランス',
@@ -361,7 +361,7 @@ const getTacticLabel = (tactic: string): string => {
 };
 
 const getImpactLabel = (impact: string): string => {
-  const labels = {
+  const labels: Record<string, string> = {
     'low': '軽微',
     'medium': '中程度',
     'high': '重大'

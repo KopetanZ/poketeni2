@@ -80,7 +80,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   const [gameState, setGameState] = useState<GameState>(gameFlow.getGameState());
   
   // UI状態管理
-  const [activeTab, setActiveTab] = useState<'sugoroku' | 'calendar' | 'stats' | 'events'>('sugoroku');
+  const [activeTab, setActiveTab] = useState<'sugoroku' | 'calendar' | 'stats' | 'events' | 'cards'>('sugoroku');
   const [showStrategicChoice, setShowStrategicChoice] = useState(false);
   const [showCardResult, setShowCardResult] = useState(false);
   const [showSeasonalEvent, setShowSeasonalEvent] = useState(false);
@@ -723,6 +723,13 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
           >
             📋 イベント履歴
           </Button>
+          <Button
+            onClick={() => setActiveTab('cards')}
+            variant={activeTab === 'cards' ? 'default' : 'outline'}
+            className="flex items-center gap-2"
+          >
+            �� カード選択
+          </Button>
         </div>
 
         {/* タブコンテンツ */}
@@ -801,9 +808,15 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
               <SugorokuTrainingBoard
                 currentPosition={gameState.calendarSystem.getCurrentState().currentDate.day}
                 availableCards={gameState.availableCards}
-                onCardUse={handleCardUse}
+                onCardUse={(cardId) => {
+                  // カード使用時の処理
+                  console.log('Card used in sugoroku:', cardId);
+                  // 必要に応じて追加の処理を実装
+                }}
                 isLoading={isAdvancingDay}
                 allPlayers={gameState.allPlayers}
+                schoolId={schoolId || 'default'}
+                currentDate={gameFlow.getGameState().calendarSystem.getCurrentState().currentDate}
               />
             </div>
           )}
@@ -923,8 +936,28 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
 
           {activeTab === 'events' && schoolId && (
             <div className="h-[800px]">
-              <EventHistoryDisplay schoolId={schoolId} />
+              <EventHistoryDisplay schoolId={schoolId || 'default'} />
             </div>
+          )}
+
+          {activeTab === 'cards' && (
+            <CardSelectionInterface
+              player={gameState.player}
+              schoolFunds={gameState.schoolStats.funds}
+              schoolReputation={gameState.schoolStats.reputation}
+              schoolId={schoolId || 'default'}
+              currentDate={gameFlow.getGameState().calendarSystem.getCurrentState().currentDate}
+              onCardUse={(result) => {
+                // カード使用結果の処理
+                setLastCardResult(result);
+                setShowCardResult(true);
+                console.log('Card used:', result);
+              }}
+              onStatsUpdate={(updatedPlayer) => {
+                // プレイヤーステータスの更新処理
+                console.log('Player stats updated:', updatedPlayer);
+              }}
+            />
           )}
         </div>
       </div>

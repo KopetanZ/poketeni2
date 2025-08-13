@@ -1,7 +1,7 @@
 // ゲーム基本型定義
 
 import { PokemonStats } from './pokemon-stats';
-import { SpecialAbility } from './special-abilities';
+import { SpecialAbility, EnhancedSpecialAbility } from './special-abilities';
 import { TrainingCard as IntegratedTrainingCard } from './training-cards';
 
 // PokeAPI関連型定義
@@ -114,7 +114,7 @@ export interface Player {
   pokemon_stats?: PokemonStats;
   
   // 特殊能力システム
-  special_abilities?: SpecialAbility[];
+  special_abilities?: EnhancedSpecialAbility[];
 
   // 世代交代システム追加要素
   enrollmentYear: number; // 入学年度（1年生の時の年度）
@@ -169,7 +169,7 @@ export interface NewStudentCandidate {
     mental: number;
     stamina: number;
   };
-  specialAbilities: SpecialAbility[];
+  specialAbilities: EnhancedSpecialAbility[];
   scoutingCost: number;
   competitorSchools: string[];
   acquisitionChance: number;

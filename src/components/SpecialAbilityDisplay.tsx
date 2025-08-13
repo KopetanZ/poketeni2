@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { SpecialAbility } from '@/types/special-abilities';
+import { EnhancedSpecialAbility } from '@/types/special-abilities';
 
 interface SpecialAbilityDisplayProps {
-  abilities: SpecialAbility[];
+  abilities: EnhancedSpecialAbility[];
   showDescription?: boolean;
   size?: 'small' | 'medium' | 'large';
   layout?: 'horizontal' | 'vertical';
@@ -136,14 +136,14 @@ const SpecialAbilityDisplay: React.FC<SpecialAbilityDisplayProps> = ({
                         メンタル+{ability.effects.mentalBoost}
                       </span>
                     )}
-                    {ability.effects.criticalHitRate && (
+                    {ability.effects.specialEffects?.criticalHitRate && (
                       <span className="bg-orange-100 text-orange-700 px-1 rounded">
-                        クリティカル+{ability.effects.criticalHitRate}%
+                        クリティカル+{ability.effects.specialEffects.criticalHitRate}%
                       </span>
                     )}
-                    {ability.effects.tiebreakBonus && (
+                    {ability.effects.situationalEffects?.tiebreakBonus && (
                       <span className="bg-indigo-100 text-indigo-700 px-1 rounded">
-                        TB+{ability.effects.tiebreakBonus}
+                        TB+{ability.effects.situationalEffects.tiebreakBonus}
                       </span>
                     )}
                   </div>

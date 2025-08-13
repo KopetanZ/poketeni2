@@ -724,9 +724,7 @@ export const ENHANCED_TENNIS_SPECIAL_ABILITIES: EnhancedSpecialAbility[] = [
       situationalEffects: {
         behindBonus: 18
       },
-      specialEffects: {
-        staminaBoost: 5
-      }
+      staminaBoost: 5
     },
     isActive: true,
     powerLevel: 75,
@@ -1009,6 +1007,7 @@ export const ABILITY_ACQUISITION_RATES = {
     event: 0.5,         // 特殊イベントで
     evolution: 1.0,     // 進化時に確率UP
     item: 2.0,          // 専用アイテム使用時
+    coach: 0.5,         // 名コーチ指導時
     combination: 0.3    // 特定能力組み合わせ
   },
   
@@ -1018,6 +1017,7 @@ export const ABILITY_ACQUISITION_RATES = {
     event: 2.0,         // 特殊イベントで
     evolution: 3.0,     // 進化時
     item: 5.0,          // 金特書使用時
+    coach: 1.5,         // 優秀コーチ指導時
     combination: 1.0
   },
   
@@ -1027,6 +1027,7 @@ export const ABILITY_ACQUISITION_RATES = {
     event: 5.0,         // イベントで
     evolution: 8.0,     // 進化時
     item: 15.0,         // 青特書使用時
+    coach: 3.0,         // コーチ指導時
     combination: 3.0
   },
   
@@ -1034,7 +1035,50 @@ export const ABILITY_ACQUISITION_RATES = {
     training: 5.0,      // 5%
     match: 2.0,         // 練習試合でも
     event: 8.0,         // 練習イベントで
+    evolution: 6.0,     // 進化時
     item: 25.0,         // 練習アイテム使用時
+    coach: 4.0,         // コーチ指導時
+    combination: 2.0
+  },
+  
+  purple: {
+    training: 1.5,      // 1.5%
+    match: 2.5,         // 特殊な勝利で
+    event: 4.0,         // 特殊イベントで
+    evolution: 6.0,     // 進化時
+    item: 12.0,         // 紫特書使用時
+    coach: 2.5,         // 特殊コーチ指導時
+    combination: 2.0
+  },
+  
+  orange: {
+    training: 3.0,      // 3%
+    match: 4.0,         // チーム勝利で
+    event: 6.0,         // チームイベントで
+    evolution: 7.0,     // 進化時
+    item: 18.0,         // 橙特書使用時
+    coach: 3.5,         // チームコーチ指導時
+    combination: 2.5
+  },
+  
+  gray: {
+    training: 4.0,      // 4%
+    match: 1.5,         // 条件付き勝利で
+    event: 3.0,         // 条件付きイベントで
+    evolution: 5.0,     // 進化時
+    item: 20.0,         // 灰特書使用時
+    coach: 2.0,         // 条件付きコーチ指導時
+    combination: 1.5
+  },
+  
+  red: {
+    training: 0.8,      // 0.8%
+    match: 1.5,         // 特殊な状況で
+    event: 2.5,         // 特殊イベントで
+    evolution: 4.0,     // 進化時
+    item: 8.0,          // 赤特書使用時
+    coach: 1.0,         // 特殊コーチ指導時
+    combination: 0.5
   }
 };
 

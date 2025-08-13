@@ -87,7 +87,7 @@ export const RivalSchoolList: React.FC<RivalSchoolListProps> = ({
   };
 
   const getTypeColor = (type: string): string => {
-    const colors = {
+    const colors: Record<string, string> = {
       'traditional': 'bg-blue-100 text-blue-800',
       'emerging': 'bg-green-100 text-green-800',
       'technical': 'bg-purple-100 text-purple-800',
@@ -308,7 +308,7 @@ export const RivalSchoolList: React.FC<RivalSchoolListProps> = ({
 
 // ヘルパー関数
 const getTypeLabel = (type: string): string => {
-  const labels = {
+  const labels: Record<string, string> = {
     'traditional': '伝統校',
     'emerging': '新興校',
     'technical': '技術校',
@@ -321,7 +321,7 @@ const getTypeLabel = (type: string): string => {
 };
 
 const getTacticLabel = (tactic: TacticType): string => {
-  const labels = {
+  const labels: Record<string, string> = {
     'aggressive': '攻撃的',
     'defensive': '守備的',
     'balanced': 'バランス',

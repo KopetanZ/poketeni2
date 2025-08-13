@@ -1,7 +1,7 @@
 // パワプロ風キャラクター生成アルゴリズム - テニス版
 
 import { Player } from '@/types/game';
-import { SpecialAbility, TENNIS_SPECIAL_ABILITIES } from '@/types/special-abilities';
+import { SpecialAbility, EnhancedSpecialAbility, TENNIS_SPECIAL_ABILITIES } from '@/types/special-abilities';
 import { GameBalanceManager } from './game-balance-manager';
 
 // 査定値計算システム
@@ -24,17 +24,7 @@ interface PlayerStats {
   stamina: number;
 }
 
-export interface EnhancedSpecialAbility extends SpecialAbility {
-  virtual_stats: {
-    serve_skill?: number;
-    return_skill?: number;
-    volley_skill?: number;
-    stroke_skill?: number;
-    mental?: number;
-    stamina?: number;
-  };
-  assessment_value: number; // 査定値
-}
+// EnhancedSpecialAbility型は型定義ファイルからインポート
 
 // テニス専用特殊能力データベース（査定値付き）
 export const ENHANCED_TENNIS_ABILITIES: EnhancedSpecialAbility[] = [
@@ -147,7 +137,7 @@ export class CharacterGenerationSystem {
   }
   
   // 特殊能力の総査定値計算
-  static calculateSpecialAbilitiesAssessment(abilities: SpecialAbility[]): number {
+  static calculateSpecialAbilitiesAssessment(abilities: EnhancedSpecialAbility[]): number {
     if (!abilities || abilities.length === 0) return 0;
     
     return abilities.reduce((total, ability) => {
@@ -202,8 +192,8 @@ export class CharacterGenerationSystem {
     level: number,
     position: Player['position'],
     targetAssessment?: number
-  ): SpecialAbility[] {
-    const abilities: SpecialAbility[] = [];
+  ): EnhancedSpecialAbility[] {
+    const abilities: EnhancedSpecialAbility[] = [];
     
     // ポジションによる基本確率
     const baseChance = {
@@ -236,14 +226,14 @@ export class CharacterGenerationSystem {
       // 査定レベルによる絞り込み
       if (Math.random() < goldChance && level >= 15) {
         // 金特級を狙う
-        const goldAbilities = candidateAbilities.filter(a => a.assessment_value >= 100);
+        const goldAbilities = candidateAbilities.filter(a => (a.assessment_value || 0) >= 100);
         if (goldAbilities.length > 0) {
           candidateAbilities = goldAbilities;
         }
       } else if (Math.random() < 0.8) {
         // 青特級を優先
         const blueAbilities = candidateAbilities.filter(a => 
-          a.assessment_value >= 60 && a.assessment_value < 100
+          (a.assessment_value || 0) >= 60 && (a.assessment_value || 0) < 100
         );
         if (blueAbilities.length > 0) {
           candidateAbilities = blueAbilities;
@@ -253,7 +243,7 @@ export class CharacterGenerationSystem {
       // 赤特（ネガティブ）の確率制限
       const negativeChance = Math.max(0.02, 0.15 - level * 0.005);
       if (Math.random() > negativeChance) {
-        candidateAbilities = candidateAbilities.filter(a => a.assessment_value >= 0);
+        candidateAbilities = candidateAbilities.filter(a => (a.assessment_value || 0) >= 0);
       }
       
       // ランダム選択

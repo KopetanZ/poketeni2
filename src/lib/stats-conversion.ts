@@ -111,12 +111,12 @@ export const TYPE_BONUSES: TypeBonus[] = [
   },
   {
     type: 'rock',
-    skills: { defense: 8, stamina: 6 },
+    skills: { return_skill: 8, stamina: 6 },
     description: '岩タイプ: 守備と持久力'
   },
   {
     type: 'bug',
-    skills: { speed: 6, mental: 3 },
+    skills: { mental: 6, volley_skill: 3 },
     description: '虫タイプ: 反応速度と判断'
   }
 ];

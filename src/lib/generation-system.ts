@@ -2,7 +2,8 @@
 
 import { Player, NewStudentCandidate, GraduatedPlayer, SchoolHistory, GameDate, PersonalityType, CareerPath } from '@/types/game';
 import { CharacterGenerationSystem } from './character-generation-system';
-import { SpecialAbility } from '@/types/special-abilities';
+import { SpecialAbility, EnhancedSpecialAbility } from '@/types/special-abilities';
+import { getAbilitiesByRank, getAbilitiesByColor, calculateAcquisitionProbability } from './enhanced-special-abilities-database';
 
 export class GenerationSystem {
   // 卒業判定と進路決定
@@ -257,53 +258,115 @@ export class GenerationSystem {
   private static generateInitialSpecialAbilities(
     potential: 'genius' | 'talented' | 'normal' | 'underdog',
     personality: PersonalityType
-  ): SpecialAbility[] {
-    const abilities: SpecialAbility[] = [];
+  ): EnhancedSpecialAbility[] {
+    const abilities: EnhancedSpecialAbility[] = [];
     
     // 才能による初期特殊能力確率
     let abilityChance: number;
+    let maxAbilities: number;
+    
     switch (potential) {
       case 'genius':
-        abilityChance = 0.8;
+        abilityChance = 0.9;
+        maxAbilities = 3;
         break;
       case 'talented':
-        abilityChance = 0.4;
+        abilityChance = 0.6;
+        maxAbilities = 2;
         break;
       case 'normal':
-        abilityChance = 0.1;
+        abilityChance = 0.3;
+        maxAbilities = 1;
         break;
       case 'underdog':
-        abilityChance = 0.05;
+        abilityChance = 0.15;
+        maxAbilities = 1;
         break;
     }
     
     // 天才肌の性格はさらに確率アップ
     if (personality === 'genius') {
-      abilityChance += 0.2;
+      abilityChance += 0.1;
+      maxAbilities += 1;
     }
     
     if (Math.random() < abilityChance) {
-      // 基礎的な特殊能力から選択
-      const basicAbilities = [
-        'power_serve', 'quick_return', 'net_master', 'baseline_king',
-        'focus_master', 'rally_fighter'
-      ];
+      // 新しく拡充した特殊能力から選択
+      const numAbilities = Math.min(
+        Math.floor(Math.random() * maxAbilities) + 1,
+        maxAbilities
+      );
       
-      const selectedAbility = basicAbilities[Math.floor(Math.random() * basicAbilities.length)];
-      abilities.push({
-        id: selectedAbility,
-        name: selectedAbility,
-        englishName: selectedAbility,
-        type: 'serve',
-        rank: 'G',
-        description: `${selectedAbility} ability`,
-        color: 'blue',
-        isActive: true,
-        effects: {}
-      });
+      // ランク別の特殊能力を取得
+      const availableAbilities = this.getAvailableAbilitiesForPotential(potential);
+      
+      // 重複を避けて特殊能力を選択
+      const selectedAbilities = this.selectRandomAbilities(availableAbilities, numAbilities);
+      
+      abilities.push(...selectedAbilities);
     }
     
     return abilities;
+  }
+  
+  // 才能レベルに応じて利用可能な特殊能力を取得
+  private static getAvailableAbilitiesForPotential(potential: 'genius' | 'talented' | 'normal' | 'underdog'): EnhancedSpecialAbility[] {
+    const availableAbilities: EnhancedSpecialAbility[] = [];
+    
+    switch (potential) {
+      case 'genius':
+        // 天才はSS+からBランクまで
+        availableAbilities.push(...getAbilitiesByRank('SS+'));
+        availableAbilities.push(...getAbilitiesByRank('SS'));
+        availableAbilities.push(...getAbilitiesByRank('S+'));
+        availableAbilities.push(...getAbilitiesByRank('S'));
+        availableAbilities.push(...getAbilitiesByRank('A+'));
+        availableAbilities.push(...getAbilitiesByRank('A'));
+        availableAbilities.push(...getAbilitiesByRank('B+'));
+        availableAbilities.push(...getAbilitiesByRank('B'));
+        break;
+        
+      case 'talented':
+        // 才能ある子はS+からCランクまで
+        availableAbilities.push(...getAbilitiesByRank('S+'));
+        availableAbilities.push(...getAbilitiesByRank('S'));
+        availableAbilities.push(...getAbilitiesByRank('A+'));
+        availableAbilities.push(...getAbilitiesByRank('A'));
+        availableAbilities.push(...getAbilitiesByRank('B+'));
+        availableAbilities.push(...getAbilitiesByRank('B'));
+        availableAbilities.push(...getAbilitiesByRank('C'));
+        break;
+        
+      case 'normal':
+        // 普通の子はAからDランクまで
+        availableAbilities.push(...getAbilitiesByRank('A'));
+        availableAbilities.push(...getAbilitiesByRank('B+'));
+        availableAbilities.push(...getAbilitiesByRank('B'));
+        availableAbilities.push(...getAbilitiesByRank('C'));
+        availableAbilities.push(...getAbilitiesByRank('D'));
+        break;
+        
+      case 'underdog':
+        // 下剋上はBからDランクまで
+        availableAbilities.push(...getAbilitiesByRank('B'));
+        availableAbilities.push(...getAbilitiesByRank('C'));
+        availableAbilities.push(...getAbilitiesByRank('D'));
+        break;
+    }
+    
+    return availableAbilities;
+  }
+  
+  // 重複を避けてランダムに特殊能力を選択
+  private static selectRandomAbilities(availableAbilities: EnhancedSpecialAbility[], numAbilities: number): EnhancedSpecialAbility[] {
+    const selected: EnhancedSpecialAbility[] = [];
+    const shuffled = [...availableAbilities].sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < Math.min(numAbilities, shuffled.length); i++) {
+      selected.push(shuffled[i]);
+    }
+    
+    return selected;
   }
   
   // スカウト実行

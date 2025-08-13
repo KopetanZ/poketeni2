@@ -43,16 +43,43 @@ CREATE INDEX IF NOT EXISTS idx_evolution_stage ON pokemon_evolution_chains(evolu
 CREATE INDEX IF NOT EXISTS idx_players_rarity ON players(rarity_level);
 CREATE INDEX IF NOT EXISTS idx_players_pokemon_master ON players(pokemon_master_id);
 
--- 5. レアリティ制約
-ALTER TABLE pokemon_master_data ADD CONSTRAINT check_rarity_level 
-  CHECK (rarity_level IN ('common', 'uncommon', 'rare', 'epic', 'legendary'));
+-- 5. レアリティ制約（既存の場合はスキップ）
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'check_rarity_level' 
+    AND table_name = 'pokemon_master_data'
+  ) THEN
+    ALTER TABLE pokemon_master_data ADD CONSTRAINT check_rarity_level 
+      CHECK (rarity_level IN ('common', 'uncommon', 'rare', 'epic', 'legendary'));
+  END IF;
+END $$;
 
-ALTER TABLE players ADD CONSTRAINT check_player_rarity_level 
-  CHECK (rarity_level IN ('common', 'uncommon', 'rare', 'epic', 'legendary'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'check_player_rarity_level' 
+    AND table_name = 'players'
+  ) THEN
+    ALTER TABLE players ADD CONSTRAINT check_player_rarity_level 
+      CHECK (rarity_level IN ('common', 'uncommon', 'rare', 'epic', 'legendary'));
+  END IF;
+END $$;
 
--- 6. 進化ステージ制約
-ALTER TABLE pokemon_evolution_chains ADD CONSTRAINT check_evolution_stage 
-  CHECK (evolution_stage BETWEEN 1 AND 3);
+-- 6. 進化ステージ制約（既存の場合はスキップ）
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'check_evolution_stage' 
+    AND table_name = 'pokemon_evolution_chains'
+  ) THEN
+    ALTER TABLE pokemon_evolution_chains ADD CONSTRAINT check_evolution_stage 
+      CHECK (evolution_stage BETWEEN 1 AND 3);
+  END IF;
+END $$;
 
 -- 7. サンプルデータ挿入（テスト用）
 INSERT INTO pokemon_master_data (pokemon_id, japanese_name, english_name, types, base_stats, sprite_urls, rarity_level, generation, is_recruitable) VALUES
