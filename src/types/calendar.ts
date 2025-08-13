@@ -2,7 +2,6 @@
 
 export type SquareType = 'blue' | 'red' | 'white' | 'green' | 'yellow';
 export type MonthType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
-export type WeekType = 1 | 2 | 3 | 4;
 
 // マス目効果の定義
 export interface SquareEffect {
@@ -43,9 +42,8 @@ export interface SquareEffect {
 export interface CalendarDay {
   year: number;
   month: MonthType;
-  week: WeekType;
   day: number;
-  dayOfWeek: number; // 0: 日曜 〜 6: 土曜
+  dayOfWeek?: number; // 0: 日曜 〜 6: 土曜（オプショナル）
   
   // マス目情報
   square: SquareType;
@@ -66,7 +64,6 @@ export interface SeasonalEvent {
   name: string;
   description: string;
   month: MonthType;
-  requiredWeek?: WeekType;
   eventType: 'entrance_ceremony' | 'summer_festival' | 'cultural_festival' | 'graduation';
   effects: {
     schoolReputation?: number;
@@ -82,7 +79,6 @@ export interface HiddenEvent {
   name: string;
   description: string;
   month: MonthType;
-  week?: WeekType;
   
   // 発生条件
   conditions: {

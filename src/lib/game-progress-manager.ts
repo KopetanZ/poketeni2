@@ -2,16 +2,30 @@ import { supabase } from './supabase';
 import { TrainingCard } from '@/types/training-cards';
 
 export interface GameProgress {
-  id: string;
-  school_id: string;
+  id: string; // UUID型
+  school_id: string; // UUID型
+  
+  // ゲーム進行状態
   current_position: number;
-  total_progress: number;
+  current_year: number;
+  current_month: number;
+  current_day: number;
+  
+  // 手札管理
   hand_cards_count: number;
-  max_hand_size: number;
-  last_save_date: string;
-  game_version: string;
+  last_daily_reset_year: number;
+  last_daily_reset_month: number;
+  last_daily_reset_day: number;
+  
+  // カード使用履歴
+  cards_used_today: number;
   total_cards_used: number;
+  
+  // 統計情報
+  total_moves: number;
   total_events_triggered: number;
+  
+  // タイムスタンプ
   created_at: string;
   updated_at: string;
 }
@@ -110,21 +124,36 @@ export class GameProgressManager {
   // ゲーム進行状況の初期化
   async initializeGameProgress(schoolId: string): Promise<GameProgress | null> {
     try {
+      // UUIDを生成（既存のテーブルがUUID型を使用しているため）
+      // ブラウザ環境とNode.js環境の両方に対応
+      let progressId: string;
+      try {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          progressId = crypto.randomUUID();
+        } else {
+          // フォールバック: タイムスタンプベースのID
+          progressId = `progress_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+      } catch {
+        // フォールバック: タイムスタンプベースのID
+        progressId = `progress_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      
+      // 既存のテーブル構造に合わせて、基本的なフィールドのみで挿入
       const { data, error } = await supabase
         .from('game_progress')
         .insert({
-          school_id: schoolId,
-          current_position: 0,
-          total_progress: 0,
-          hand_cards_count: 5,
-          max_hand_size: 5,
-          total_cards_used: 0,
-          total_events_triggered: 0
+          id: progressId,
+          school_id: schoolId
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Failed to initialize game progress:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        throw error;
+      }
 
       // 日次リセット管理も初期化
       await this.initializeDailyResetManagement(schoolId);
@@ -175,11 +204,11 @@ export class GameProgressManager {
       const currentProgress = await this.getGameProgress(schoolId);
       if (!currentProgress) return false;
 
-      const totalProgress = currentProgress.total_progress + newPosition;
+      const totalProgress = currentProgress.total_moves + newPosition;
       
       await this.updateGameProgress(schoolId, {
         current_position: newPosition % 24,
-        total_progress: totalProgress
+        total_moves: totalProgress
       });
 
       return true;
@@ -192,9 +221,27 @@ export class GameProgressManager {
   // 手札の状態を更新
   async updateHandCards(schoolId: string, handCardsCount: number): Promise<boolean> {
     try {
-      await this.updateGameProgress(schoolId, {
-        hand_cards_count: handCardsCount
-      });
+      // 既存のテーブル構造に合わせて、基本的なフィールドのみを更新
+      // 必要に応じて、フィールドの存在を確認してから更新
+      const updateData: any = {};
+      
+      // フィールドが存在する場合のみ更新
+      try {
+        await this.updateGameProgress(schoolId, {
+          hand_cards_count: handCardsCount
+        });
+      } catch (fieldError: any) {
+        if (fieldError.message && fieldError.message.includes('column')) {
+          console.warn('hand_cards_countフィールドが存在しないため、スキップします');
+          // フィールドが存在しない場合は、基本的な更新のみ実行
+          await this.updateGameProgress(schoolId, {
+            updated_at: new Date().toISOString()
+          });
+        } else {
+          throw fieldError;
+        }
+      }
+      
       return true;
     } catch (error) {
       console.error('Failed to update hand cards:', error);
@@ -235,9 +282,24 @@ export class GameProgressManager {
   // 日次リセット管理の初期化
   async initializeDailyResetManagement(schoolId: string): Promise<DailyResetManagement | null> {
     try {
+      // UUIDを生成（既存のテーブルがUUID型を使用しているため）
+      let resetId: string;
+      try {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          resetId = crypto.randomUUID();
+        } else {
+          // フォールバック: タイムスタンプベースのID
+          resetId = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+      } catch {
+        // フォールバック: タイムスタンプベースのID
+        resetId = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      
       const { data, error } = await supabase
         .from('daily_reset_management')
         .insert({
+          id: resetId,
           school_id: schoolId,
           last_reset_date_year: 2024,
           last_reset_date_month: 4,
@@ -326,9 +388,24 @@ export class GameProgressManager {
     notes?: string
   ): Promise<boolean> {
     try {
+      // UUIDを生成（既存のテーブルがUUID型を使用しているため）
+      let historyId: string;
+      try {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          historyId = crypto.randomUUID();
+        } else {
+          // フォールバック: タイムスタンプベースのID
+          historyId = `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+      } catch {
+        // フォールバック: タイムスタンプベースのID
+        historyId = `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      
       const { error } = await supabase
         .from('card_usage_history')
         .insert({
+          id: historyId,
           school_id: schoolId,
           player_id: playerId,
           card_id: card.id,
@@ -346,6 +423,7 @@ export class GameProgressManager {
       const currentProgress = await this.getGameProgress(schoolId);
       if (currentProgress) {
         await this.updateGameProgress(schoolId, {
+          cards_used_today: currentProgress.cards_used_today + 1,
           total_cards_used: currentProgress.total_cards_used + 1
         });
       }
@@ -370,9 +448,24 @@ export class GameProgressManager {
     gameDateDay?: number
   ): Promise<boolean> {
     try {
+      // UUIDを生成（既存のテーブルがUUID型を使用しているため）
+      let eventId: string;
+      try {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          eventId = crypto.randomUUID();
+        } else {
+          // フォールバック: タイムスタンプベースのID
+          eventId = `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+      } catch {
+        // フォールバック: タイムスタンプベースのID
+        eventId = `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      
       const { error } = await supabase
         .from('square_event_history')
         .insert({
+          id: eventId,
           school_id: schoolId,
           square_position: squarePosition,
           square_type: squareType,
@@ -425,13 +518,19 @@ export class GameProgressManager {
         .delete()
         .eq('school_id', schoolId);
 
-      // ゲーム進行状況を初期化
+      // ゲーム進行状況を基本的なフィールドのみで更新
       await this.updateGameProgress(schoolId, {
         current_position: 0,
-        total_progress: 0,
+        current_year: 2024,
+        current_month: 4,
+        current_day: 1,
         hand_cards_count: 5,
-        max_hand_size: 5,
+        last_daily_reset_year: 2024,
+        last_daily_reset_month: 4,
+        last_daily_reset_day: 1,
+        cards_used_today: 0,
         total_cards_used: 0,
+        total_moves: 0,
         total_events_triggered: 0
       });
 

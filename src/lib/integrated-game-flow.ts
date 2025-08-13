@@ -40,7 +40,6 @@ export interface GameState {
   // ゲーム進行状態
   gamePhase: 'early' | 'middle' | 'late' | 'climax';
   dayCount: number;
-  weekCount: number;
   
   // 統計情報
   stats: {
@@ -102,7 +101,6 @@ export class IntegratedGameFlow {
         year: initialSchoolStats.current_year,
         month: initialSchoolStats.current_month as MonthType,
         day: initialSchoolStats.current_day,
-        week: 1,
         dayOfWeek: 1,
         square: 'blue'
       }),
@@ -126,7 +124,6 @@ export class IntegratedGameFlow {
       choiceHistory: [],
       gamePhase: 'early',
       dayCount: 0,
-      weekCount: 0,
       stats: {
         totalChoicesMade: 0,
         totalCardsUsed: 0,
@@ -217,10 +214,6 @@ export class IntegratedGameFlow {
     const newDay = this.gameState.calendarSystem.advanceDay();
     this.gameState.dayCount++;
     
-    if (this.gameState.dayCount % 7 === 0) {
-      this.gameState.weekCount++;
-    }
-
     const triggeredEvents: string[] = [];
     
     // 季節イベントの処理
@@ -368,9 +361,6 @@ export class IntegratedGameFlow {
       
       // 日付カウントの更新のみ（効果適用は後で）
       this.gameState.dayCount++;
-      if (this.gameState.dayCount % 7 === 0) {
-        this.gameState.weekCount++;
-      }
     }
     
     // 進行完了後にまとめて効果を適用
@@ -845,11 +835,11 @@ export class IntegratedGameFlow {
 
   // ゲームフェーズ更新
   private updateGamePhase(): void {
-    if (this.gameState.weekCount < 10) {
+    if (this.gameState.dayCount < 10) {
       this.gameState.gamePhase = 'early';
-    } else if (this.gameState.weekCount < 25) {
+    } else if (this.gameState.dayCount < 25) {
       this.gameState.gamePhase = 'middle';
-    } else if (this.gameState.weekCount < 40) {
+    } else if (this.gameState.dayCount < 40) {
       this.gameState.gamePhase = 'late';
     } else {
       this.gameState.gamePhase = 'climax';

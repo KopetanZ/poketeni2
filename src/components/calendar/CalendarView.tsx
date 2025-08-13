@@ -145,7 +145,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <CardTitle className="text-2xl">
-                {currentState.currentYear}年生 {currentDay.month}月 第{currentDay.week}週
+                {currentState.currentYear}年生 {currentDay.month}月{currentDay.day}日
               </CardTitle>
               <p className="text-blue-100 mt-1">
                 卒業まで {Math.ceil(currentState.daysUntilGraduation / 365 * 10) / 10} 年

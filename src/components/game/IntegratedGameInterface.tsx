@@ -633,7 +633,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                 PokeTeniMaster みどり学園
               </h1>
               <p className="text-gray-600">
-                {gameState.player.pokemon_name} | Day {gameFlow.getCurrentDay()?.day || gameState.dayCount} | Week {gameFlow.getCurrentDay()?.week || gameState.weekCount}
+                {gameState.player.pokemon_name} | Day {gameFlow.getCurrentDay()?.day || gameState.dayCount}
               </p>
             </div>
             
@@ -808,11 +808,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
               <SugorokuTrainingBoard
                 currentPosition={gameState.calendarSystem.getCurrentState().currentDate.day}
                 availableCards={gameState.availableCards}
-                onCardUse={(cardId) => {
-                  // カード使用時の処理
-                  console.log('Card used in sugoroku:', cardId);
-                  // 必要に応じて追加の処理を実装
-                }}
+                onCardUse={handleCardUse}
                 isLoading={isAdvancingDay}
                 allPlayers={gameState.allPlayers}
                 schoolId={schoolId || 'default'}
@@ -920,7 +916,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
                         </div>
                         <div className="flex justify-between">
                           <span>経過日数</span>
-                          <span>{gameState.dayCount}日 ({gameState.weekCount}週)</span>
+                          <span>{gameState.dayCount}日</span>
                         </div>
                         <div className="flex justify-between">
                           <span>学校設備レベル</span>

@@ -13,8 +13,7 @@ import {
   HiddenEvent,
   SpecialEvent,
   CalendarChoice,
-  MonthType,
-  WeekType
+  MonthType
 } from '../types/calendar';
 
 // 5色マス基本効果定義
@@ -259,7 +258,6 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
     name: '入学式',
     description: '新入生が入部！期待の新戦力',
     month: 4,
-    requiredWeek: 1,
     eventType: 'entrance_ceremony',
     effects: {
       schoolReputation: 5,
@@ -272,7 +270,6 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
     name: '夏祭り',
     description: '地域との交流で部の知名度アップ',
     month: 7,
-    requiredWeek: 3,
     eventType: 'summer_festival',
     effects: {
       schoolReputation: 8,
@@ -285,7 +282,6 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
     name: '文化祭',
     description: '部活紹介で新入部員獲得チャンス',
     month: 10,
-    requiredWeek: 2,
     eventType: 'cultural_festival',
     effects: {
       schoolReputation: 10,
@@ -298,7 +294,6 @@ export const SEASONAL_EVENTS: SeasonalEvent[] = [
     name: '卒業式',
     description: '3年生の旅立ち...感動の瞬間',
     month: 3,
-    requiredWeek: 2,
     eventType: 'graduation',
     effects: {
       schoolReputation: 3,
@@ -317,7 +312,6 @@ export class CalendarSystem {
       year: 2024,
       month: 4,
       day: 1,
-      week: 1,
       dayOfWeek: 1,
       square: 'blue'
     }
@@ -453,16 +447,9 @@ export class CalendarSystem {
     return this.currentState.yearCalendar.length;
   }
 
-  // 年間カレンダー生成（一度だけ実行）
+  // 年間カレンダー生成
   private generateYearCalendar(): void {
-    if (this.isCalendarGenerated) {
-      console.log('=== generateYearCalendar: 既に生成済みのためスキップ ===');
-      return;
-    }
-
     console.log('=== generateYearCalendar 開始 ===');
-    console.log('現在の年:', this.currentState.currentYear);
-    
     const calendar: CalendarDay[] = [];
     const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     
@@ -471,7 +458,6 @@ export class CalendarSystem {
         const calendarDay = this.generateDay(
           this.currentState.currentYear,
           month as MonthType,
-          Math.ceil(day / 7) as WeekType,
           day
         );
         calendar.push(calendarDay);
@@ -499,16 +485,14 @@ export class CalendarSystem {
     while (currentDate <= endDate) {
       const month = currentDate.getMonth() + 1 as MonthType;
       const day = currentDate.getDate();
-      const week = this.getDayOfWeek(currentDate) as WeekType;
       
-             const calendarDay: CalendarDay = {
-         year: year,
-         month: month,
-         day: day,
-         week: week,
-         dayOfWeek: (currentDate.getDay() + 6) % 7, // 0を月曜日に変換
-         square: this.getRandomSquareType() // ランダムなマス目タイプを設定
-       };
+      const calendarDay: CalendarDay = {
+        year: year,
+        month: month,
+        day: day,
+        dayOfWeek: (currentDate.getDay() + 6) % 7, // 0を月曜日に変換
+        square: this.getRandomSquareType() // ランダムなマス目タイプを設定
+      };
       
       const key = `${year}-${month}-${day}`;
       this.currentState.yearCalendar.push(calendarDay);
@@ -523,13 +507,13 @@ export class CalendarSystem {
   }
 
   // 個別日付生成（マス色決定ロジック含む）
-  private generateDay(year: number, month: MonthType, week: WeekType, day: number): CalendarDay {
+  private generateDay(year: number, month: MonthType, day: number): CalendarDay {
     // ハードコードされた年（2024）を修正し、正しい年を使用
     const date = new Date(year, month - 1, day);
     const dayOfWeek = date.getDay();
     
     // マス色決定（戦略的確率分布）
-    const square = this.determineSquareType(month, week, dayOfWeek);
+    const square = this.determineSquareType(month, dayOfWeek);
     
     // 天候生成
     const weather = this.generateWeather(month);
@@ -538,13 +522,12 @@ export class CalendarSystem {
     const courtCondition = this.generateCourtCondition(month, day);
     
     // イベント判定
-    const seasonalEvent = this.checkSeasonalEvent(month, week);
-    const hiddenEvent = this.checkHiddenEvent(month, week);
+    const seasonalEvent = this.checkSeasonalEvent(month);
+    const hiddenEvent = this.checkHiddenEvent(month);
 
     return {
       year,
       month,
-      week,
       day,
       dayOfWeek,
       square,
@@ -570,7 +553,7 @@ export class CalendarSystem {
   }
 
   // マス色決定ロジック（栄冠ナイン風確率分布）
-  private determineSquareType(month: MonthType, week: WeekType, dayOfWeek: number): SquareType {
+  private determineSquareType(month: MonthType, dayOfWeek: number): SquareType {
     // 基本確率（バランス調整済み）
     let probabilities = {
       blue: 20,   // 良練習（20%）
@@ -597,7 +580,7 @@ export class CalendarSystem {
     }
 
     // 確率に基づく選択（確定的な疑似乱数を使用）
-    const seed = month * 1000 + week * 100 + dayOfWeek;
+    const seed = month * 1000 + dayOfWeek;
     const random = this.deterministicRandom(seed);
     const total = Object.values(probabilities).reduce((sum, val) => sum + val, 0);
     const randomValue = random * total;
@@ -665,23 +648,21 @@ export class CalendarSystem {
   }
 
   // 季節イベント判定
-  private checkSeasonalEvent(month: MonthType, week: WeekType): SeasonalEvent | undefined {
+  private checkSeasonalEvent(month: MonthType): SeasonalEvent | undefined {
     return SEASONAL_EVENTS.find(event => 
-      event.month === month && 
-      (!event.requiredWeek || event.requiredWeek === week)
+      event.month === month
     );
   }
 
   // 隠しイベント判定（条件チェック）
-  private checkHiddenEvent(month: MonthType, week: WeekType): HiddenEvent | undefined {
+  private checkHiddenEvent(month: MonthType): HiddenEvent | undefined {
     // 8月特訓イベント
-    if (month === 8 && week === 2) {
+    if (month === 8) {
       return {
         id: 'august_training',
         name: '夏季特訓',
         description: '猛暑の中での特別練習！大きく成長するチャンス',
         month: 8,
-        week: 2,
         conditions: {
           randomChance: 70
         },
@@ -694,13 +675,12 @@ export class CalendarSystem {
     }
 
     // 12月クリスマスイベント
-    if (month === 12 && week === 3) {
+    if (month === 12) {
       return {
         id: 'christmas_party',
         name: 'クリスマス会',
         description: '部員との絆を深める特別な時間',
         month: 12,
-        week: 3,
         conditions: {
           randomChance: 50
         },
@@ -735,14 +715,13 @@ export class CalendarSystem {
       }
     }
     
-         const nextDate: CalendarDay = {
-       year: nextYear,
-       month: nextMonth as MonthType,
-       day: nextDay,
-       week: this.getDayOfWeek(new Date(nextYear, nextMonth - 1, nextDay)) as WeekType,
-       dayOfWeek: (new Date(nextYear, nextMonth - 1, nextDay).getDay() + 6) % 7,
-       square: this.getRandomSquareType()
-     };
+    const nextDate: CalendarDay = {
+      year: nextYear,
+      month: nextMonth as MonthType,
+      day: nextDay,
+      dayOfWeek: (new Date(nextYear, nextMonth - 1, nextDay).getDay() + 6) % 7,
+      square: this.getRandomSquareType()
+    };
     
     // 新しい年の場合は年カレンダーを再生成
     if (nextYear !== this.currentState.currentYear) {
@@ -788,15 +767,14 @@ export class CalendarSystem {
       // フォールバック: 新しい日付を生成
       const date = new Date(year, month - 1, day);
       const dayOfWeek = date.getDay();
-      const week = Math.ceil(day / 7) as WeekType;
       
-      const newDate = this.generateDay(year, month, week, day);
+      const newDate = this.generateDay(year, month, day);
       
       this.currentState.currentDate = newDate;
       this.currentState.currentYear = year;
       this.currentState.currentSemester = month <= 9 ? 1 : 2;
       
-      console.log('CalendarSystem: 新規生成で日付を設定しました:', { year, month, day, week, dayOfWeek });
+      console.log('CalendarSystem: 新規生成で日付を設定しました:', { year, month, day, dayOfWeek });
     }
   }
 
@@ -952,9 +930,9 @@ export class CalendarSystem {
   }
 
   // 曜日を取得
-  private getDayOfWeek(date: Date): WeekType {
+  private getDayOfWeek(date: Date): number {
     const dayOfWeek = date.getDay();
-    return (dayOfWeek + 6) % 7 + 1 as WeekType; // 0を月曜日に変換
+    return (dayOfWeek + 6) % 7 + 1; // 0を月曜日に変換
   }
 
   // ランダムなマス目タイプを取得

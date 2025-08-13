@@ -118,120 +118,52 @@ export default function SugorokuTrainingBoard({
     return uniqueCards;
   }, [availableCards]);
 
-  // 手札の初期化（データベースから読み込み）
+  // 手札の初期化（availableCardsプロパティから直接取得）
   useEffect(() => {
-    const initializeHandCards = async () => {
-      if (!isInitialized && schoolId) {
-        setIsLoadingHand(true);
-        try {
-          // データベースから手札を読み込み
-          let cards = await handCardsManager.getHandCards(schoolId);
-          
-          // 手札が空の場合、または日次リセットが必要な場合は新しいカードを生成
-          if (cards.length === 0 || await gameProgressManager.shouldResetDaily(
-            schoolId, 
-            currentDate.year, 
-            currentDate.month, 
-            currentDate.day
-          )) {
-            // 利用可能なカードから初期手札を作成
-            const initialHand = uniqueAvailableCards.slice(0, HAND_SIZE);
-            if (initialHand.length > 0) {
-              // データベースに保存
-              await handCardsManager.saveHandCards(schoolId, initialHand);
-              cards = initialHand;
-            }
-          }
-          
-          setHandCards(cards);
-          setIsInitialized(true);
-          console.log('=== 手札初期化完了（DB） ===', { 
-            availableCount: uniqueAvailableCards.length,
-            initialHandCount: cards.length
-          });
-        } catch (error) {
-          console.error('Failed to initialize hand cards from DB:', error);
-          // フォールバック：ローカルで初期化
-          const initialHand = uniqueAvailableCards.slice(0, HAND_SIZE);
-          setHandCards(initialHand);
-          setIsInitialized(true);
-        } finally {
-          setIsLoadingHand(false);
-        }
-      }
-    };
+    if (!isInitialized && uniqueAvailableCards.length > 0) {
+      // 利用可能なカードから初期手札を作成
+      const initialHand = uniqueAvailableCards.slice(0, HAND_SIZE);
+      setHandCards(initialHand);
+      setIsInitialized(true);
+      setIsLoadingHand(false);
+      
+      console.log('=== 手札初期化完了（プロパティ） ===', { 
+        availableCount: uniqueAvailableCards.length,
+        initialHandCount: initialHand.length
+      });
+    }
+  }, [uniqueAvailableCards, isInitialized]);
 
-    initializeHandCards();
-  }, [uniqueAvailableCards, isInitialized, schoolId, currentDate.year, currentDate.month, currentDate.day]);
-
-  // 手札が空になったら補充（データベースから）
+  // availableCardsが更新されたら手札も更新
   useEffect(() => {
-    const replenishHandCards = async () => {
-      if (handCards.length === 0 && uniqueAvailableCards.length > 0 && isInitialized && schoolId) {
-        try {
-          const initialHand = uniqueAvailableCards.slice(0, HAND_SIZE);
-          await handCardsManager.saveHandCards(schoolId, initialHand);
-          setHandCards(initialHand);
-          setDiscardedCards([]);
-          console.log('=== 手札空補充（DB） ===', { 
-            availableCount: uniqueAvailableCards.length,
-            initialHandCount: initialHand.length
-          });
-        } catch (error) {
-          console.error('Failed to replenish hand cards:', error);
-          // フォールバック
-          const initialHand = uniqueAvailableCards.slice(0, HAND_SIZE);
-          setHandCards(initialHand);
-          setDiscardedCards([]);
-        }
-      }
-    };
-
-    replenishHandCards();
-  }, [handCards.length, uniqueAvailableCards, isInitialized, schoolId]);
-
-  // 手札が5枚未満になったら自動補充（データベースから）
-  useEffect(() => {
-    const autoReplenishHandCards = async () => {
-      if (handCards.length < HAND_SIZE && uniqueAvailableCards.length > 0 && isInitialized && schoolId) {
-        const cardsToAdd = HAND_SIZE - handCards.length;
+    if (isInitialized && uniqueAvailableCards.length > 0) {
+      // 現在の手札で存在しないカードのみを追加
+      const newCards = uniqueAvailableCards.filter(card => 
+        !handCards.some(handCard => handCard.id === card.id)
+      );
+      
+      if (newCards.length > 0) {
+        // 手札が5枚未満の場合のみ補充
+        const currentHandSize = handCards.length;
+        const targetHandSize = HAND_SIZE;
         
-        // 手札に存在しないカードのみを対象とする
-        const availableForHand = uniqueAvailableCards.filter(card => 
-          !handCards.some(handCard => handCard.id === card.id)
-        );
-        
-        if (availableForHand.length > 0) {
-          const selectedCards: TrainingCard[] = [];
-          const tempAvailable = [...availableForHand];
+        if (currentHandSize < targetHandSize) {
+          const cardsToAdd = Math.min(targetHandSize - currentHandSize, newCards.length);
+          const selectedNewCards = newCards.slice(0, cardsToAdd);
           
-          for (let i = 0; i < Math.min(cardsToAdd, tempAvailable.length); i++) {
-            const randomIndex = Math.floor(Math.random() * tempAvailable.length);
-            const selectedCard = tempAvailable.splice(randomIndex, 1)[0];
-            selectedCards.push(selectedCard);
-          }
+          const updatedHand = [...handCards, ...selectedNewCards];
+          setHandCards(updatedHand);
           
-          try {
-            const updatedHand = [...handCards, ...selectedCards];
-            await handCardsManager.saveHandCards(schoolId, updatedHand);
-            setHandCards(updatedHand);
-            console.log('=== 自動補充完了（DB） ===', { 
-              addedCards: selectedCards.map(c => c.name),
-              addedCount: selectedCards.length,
-              handCardsCount: handCards.length,
-              totalHandCards: updatedHand.length
-            });
-          } catch (error) {
-            console.error('Failed to auto replenish hand cards:', error);
-            // フォールバック
-            setHandCards(prev => [...prev, ...selectedCards]);
-          }
+          console.log('=== 手札更新完了 ===', { 
+            addedCards: selectedNewCards.map(c => c.name),
+            addedCount: selectedNewCards.length,
+            previousHandCount: currentHandSize,
+            finalHandCount: updatedHand.length
+          });
         }
       }
-    };
-
-    autoReplenishHandCards();
-  }, [handCards.length, uniqueAvailableCards, isInitialized, schoolId]);
+    }
+  }, [uniqueAvailableCards, isInitialized]); // handCardsを依存配列から削除
 
   // ポケモン画像の取得
   useEffect(() => {
@@ -315,80 +247,6 @@ export default function SugorokuTrainingBoard({
     return () => clearInterval(interval);
   }, [ballDirection]);
 
-  // カードを補充する関数（最適化版）
-  const replenishCard = useCallback(() => {
-    if (uniqueAvailableCards.length === 0) return;
-    
-    const targetHandSize = HAND_SIZE;
-    const currentHandSize = handCards.length;
-    
-    console.log('=== 補充処理開始 ===', { 
-      currentHandSize, 
-      targetHandSize,
-      availableCardsCount: uniqueAvailableCards.length
-    });
-    
-    // 手札が5枚未満の場合、5枚まで補充
-    if (currentHandSize < targetHandSize) {
-      const cardsToAdd = targetHandSize - currentHandSize;
-      
-      // 手札に存在しないカードのみを対象とする
-      const availableForHand = uniqueAvailableCards.filter(card => 
-        !handCards.some(handCard => handCard.id === card.id)
-      );
-      
-      if (availableForHand.length === 0) {
-        // 手札に追加できるカードがない場合の処理
-        console.warn('手札に追加できるカードがありません。手札管理を最適化します。');
-        
-        if (handCards.length > 0) {
-          const randomRemoveIndex = Math.floor(Math.random() * handCards.length);
-          const removedCard = handCards[randomRemoveIndex];
-          
-          const filteredHand = handCards.filter((_, index) => index !== randomRemoveIndex);
-          const newAvailableCards = uniqueAvailableCards.filter(card => 
-            card.id !== removedCard.id && !filteredHand.some(handCard => handCard.id === card.id)
-          );
-          
-          if (newAvailableCards.length > 0) {
-            const randomNewIndex = Math.floor(Math.random() * newAvailableCards.length);
-            const newCard = newAvailableCards[randomNewIndex];
-            
-            setHandCards([...filteredHand, newCard]);
-            
-            console.log('=== 手札最適化完了 ===', { 
-              removedCard: removedCard.name,
-              addedCard: newCard.name,
-              finalHandCount: filteredHand.length + 1
-            });
-          }
-        }
-        return;
-      }
-      
-      // 必要な枚数分のカードをランダムに選択
-      const selectedCards: TrainingCard[] = [];
-      const tempAvailable = [...availableForHand];
-      
-      for (let i = 0; i < Math.min(cardsToAdd, tempAvailable.length); i++) {
-        const randomIndex = Math.floor(Math.random() * tempAvailable.length);
-        const selectedCard = tempAvailable.splice(randomIndex, 1)[0];
-        selectedCards.push(selectedCard);
-      }
-      
-      setHandCards(prev => {
-        const updated = [...prev, ...selectedCards];
-        console.log('=== カード補充完了 ===', { 
-          addedCards: selectedCards.map(c => c.name),
-          addedCount: selectedCards.length,
-          handCardsCount: prev.length,
-          totalHandCards: updated.length
-        });
-        return updated;
-      });
-    }
-  }, [uniqueAvailableCards, handCards]);
-
   // ルート選択処理
   const handleRouteChoice = useCallback((choice: any) => {
     console.log('ルート選択:', choice);
@@ -413,70 +271,38 @@ export default function SugorokuTrainingBoard({
   // カード使用処理（アニメーション付き、最適化版）
   const handleCardUse = useCallback(async (cardId: string) => {
     if (!selectedCard || isLoading) return;
-    
-    console.log('=== カード使用開始 ===', { 
-      cardId, 
-      cardName: selectedCard.name, 
-      handCardsBefore: handCards.length
-    });
-    
-    setIsAdvancing(true);
-    setAdvancementProgress(0);
-    
-    // 使用したカードを手札から削除
-    setHandCards(prev => {
-      const filtered = prev.filter(card => card.id !== cardId);
-      console.log('=== カード削除完了 ===', { 
-        removedCard: selectedCard.name, 
-        previousCount: prev.length, 
-        newCount: filtered.length 
-      });
-      return filtered;
-    });
-    
-    // カードの数字分だけ1マスずつ進むアニメーション
-    const totalSteps = selectedCard.number;
-    
-    for (let step = 1; step <= totalSteps; step++) {
-      setCurrentAdvancingPosition(currentPosition + step);
-      setAdvancementProgress(step);
-      
-      // 各ステップで少し待機（アニメーション効果）
-      await new Promise(resolve => {
-        animationTimeoutRef.current = setTimeout(resolve, ANIMATION_DELAY);
-      });
-    }
-    
-    // アニメーション完了後、実際のカード使用処理を実行
+
     console.log('=== カード使用処理実行 ===', { cardId });
     
     try {
-      // データベースに使用履歴を記録
-      if (schoolId) {
-        await handCardsManager.useCard(
-          schoolId,
-          selectedCard,
-          undefined, // プレイヤーID（必要に応じて設定）
-          currentAdvancingPosition,
-          { skillGrowth: selectedCard.baseEffects?.skillGrowth || {} }
-        );
-
-        // ゲーム進行状況を更新
-        await gameProgressManager.updatePosition(schoolId, currentAdvancingPosition + selectedCard.number);
-      }
+      // 重複実行を防ぐため、即座に状態を更新
+      setIsAdvancing(true);
+      setAdvancementProgress(0);
       
+      // 使用したカードを手札から削除
+      setHandCards(prev => {
+        const filtered = prev.filter(card => card.id !== cardId);
+        console.log('=== カード削除完了 ===', { 
+          removedCard: selectedCard.name, 
+          previousCount: prev.length, 
+          newCount: filtered.length 
+        });
+        return filtered;
+      });
+      
+      // IntegratedGameInterface.tsxの日付進行処理を呼び出し
+      // これにより、カレンダー進行とゲーム状態の更新が行われる
       onCardUse(cardId);
       
-      // 状態をリセット
+      // 状態をリセット（IntegratedGameInterface.tsxの処理完了を待つ）
       resetTimeoutRef.current = setTimeout(() => {
         setIsAdvancing(false);
         setAdvancementProgress(0);
         setSelectedCard(null);
         
-        // カードを使用したら補充
-        replenishTimeoutRef.current = setTimeout(() => {
-          replenishCard();
-        }, REPLENISH_DELAY);
+        // 手札補充はIntegratedGameInterface.tsxで処理されるため、
+        // ここでは実行しない
+        console.log('=== カード使用処理完了（状態リセット） ===');
       }, RESET_DELAY);
       
     } catch (error) {
@@ -487,14 +313,9 @@ export default function SugorokuTrainingBoard({
         setIsAdvancing(false);
         setAdvancementProgress(0);
         setSelectedCard(null);
-        
-        // エラー時も補充を試行
-        replenishTimeoutRef.current = setTimeout(() => {
-          replenishCard();
-        }, REPLENISH_DELAY);
       }, RESET_DELAY);
     }
-  }, [selectedCard, isLoading, handCards, currentPosition, onCardUse, replenishCard, schoolId, currentAdvancingPosition]);
+  }, [selectedCard, isLoading, onCardUse]);
 
   // クリーンアップ処理
   useEffect(() => {

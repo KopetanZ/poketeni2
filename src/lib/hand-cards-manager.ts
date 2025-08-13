@@ -67,19 +67,30 @@ export class HandCardsManager {
       // 新しいカードを挿入
       if (cards.length > 0) {
         const cardRecords = cards.map(card => ({
+          id: `hand_card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // データベースレコード用の一意ID
           school_id: schoolId,
-          card_data: card
+          card_data: card, // TrainingCardオブジェクト全体を保存（card.idはそのまま保持）
+          created_at: new Date().toISOString() // 作成日時を明示的に設定
         }));
 
         const { error: insertError } = await supabase
           .from('hand_cards')
           .insert(cardRecords);
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('Failed to insert hand cards:', insertError);
+          console.error('Card records being inserted:', cardRecords);
+          throw insertError;
+        }
       }
 
-      // ゲーム進行状況の手札枚数を更新
-      await gameProgressManager.updateHandCards(schoolId, cards.length);
+      // ゲーム進行状況の手札枚数を更新（エラーが発生しても手札の保存を継続）
+      try {
+        await gameProgressManager.updateHandCards(schoolId, cards.length);
+      } catch (progressError) {
+        console.warn('Failed to update game progress hand cards count:', progressError);
+        // エラーが発生しても手札の保存は継続
+      }
 
       // キャッシュを更新
       const cacheKey = `hand_cards_${schoolId}`;
@@ -180,14 +191,19 @@ export class HandCardsManager {
       const success = await this.removeCard(schoolId, card.id);
       if (!success) return false;
 
-      // 使用履歴を記録
-      await gameProgressManager.recordCardUsage(
-        schoolId,
-        playerId,
-        card,
-        usedPosition,
-        effectsApplied
-      );
+      // 使用履歴を記録（エラーが発生してもカードの使用は継続）
+      try {
+        await gameProgressManager.recordCardUsage(
+          schoolId,
+          playerId,
+          card,
+          usedPosition,
+          effectsApplied
+        );
+      } catch (historyError) {
+        console.warn('Failed to record card usage history:', historyError);
+        // エラーが発生してもカードの使用は継続
+      }
 
       return true;
     } catch (error) {
@@ -305,8 +321,13 @@ export class HandCardsManager {
       const cacheKey = `hand_cards_${schoolId}`;
       this.cache.delete(cacheKey);
 
-      // ゲーム進行状況の手札枚数を更新
-      await gameProgressManager.updateHandCards(schoolId, 0);
+      // ゲーム進行状況の手札枚数を更新（エラーが発生しても手札のリセットを継続）
+      try {
+        await gameProgressManager.updateHandCards(schoolId, 0);
+      } catch (progressError) {
+        console.warn('Failed to update game progress hand cards count during reset:', progressError);
+        // エラーが発生しても手札のリセットは継続
+      }
 
       return true;
     } catch (error) {
