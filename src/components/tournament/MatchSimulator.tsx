@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Player } from '@/types/game';
-import { MatchEngine, CPUPlayer, MatchResult, SetResult } from '@/lib/match-engine';
+import { MatchEngine, CPUPlayer, MatchResult, SetResult } from '@/lib/legacy-match-engines/match-engine';
 
 interface MatchSimulatorProps {
   homePlayer: Player;

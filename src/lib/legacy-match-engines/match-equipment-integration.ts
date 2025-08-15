@@ -2,7 +2,7 @@
 
 import { Player } from '@/types/game';
 import { PlayerEquipment } from '@/types/items';
-import { EquipmentEffectsCalculator } from './equipment-effects';
+import { EquipmentEffectsCalculator } from '../equipment-effects';
 import { MatchContext } from './advanced-match-engine';
 
 export interface EquipmentEnhancedPlayer extends Player {

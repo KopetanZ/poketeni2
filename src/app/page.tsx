@@ -14,7 +14,8 @@ import AdvancedMatchViewer from '@/components/match/AdvancedMatchViewer';
 import { PlayerEquipment } from '@/types/items';
 import { PokemonStats } from '@/types/pokemon-stats';
 import { PlayerGenerator } from '@/lib/player-generator';
-import { AdvancedSetResult } from '@/lib/advanced-match-engine';
+import { MatchResult } from '@/lib/match-system';
+
 import EikanNineMainGame from '@/components/game/EikanNineMainGame';
 import SpecialTrainingMenu from '@/components/training/SpecialTrainingMenu';
 import DataRoomDashboard from '@/components/data/DataRoomDashboard';
@@ -548,7 +549,7 @@ export default function Home() {
             setShowAdvancedMatch(false);
             setSelectedPlayer(null);
           }}
-          onMatchComplete={(result: AdvancedSetResult, opponent: Player) => {
+          onMatchComplete={(result: MatchResult, opponent: Player) => {
             console.log('Advanced match completed:', result);
             
             // 試合結果を処理

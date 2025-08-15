@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useGameData } from '@/hooks/useGameData';
 import { Player } from '@/types/game';
-import { MatchResult } from '@/lib/match-engine';
+import { MatchResult } from '@/lib/legacy-match-engines/match-engine';
 import { ExperienceBalanceSystem } from '@/lib/experience-balance-system';
 import { EvolutionSystem } from '@/lib/evolution-system';
 import { EvolutionModal } from '@/components/evolution/EvolutionModal';

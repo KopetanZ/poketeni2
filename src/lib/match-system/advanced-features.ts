@@ -32,8 +32,8 @@ export class AdvancedMatchFeatures {
     
     let totalBonus = 0;
     
-    for (const abilityName of player.special_abilities) {
-      const bonus = this.calculateSingleAbilityBonus(abilityName, pointType, context, player);
+    for (const ability of player.special_abilities) {
+      const bonus = this.calculateSingleAbilityBonus(ability.name, pointType, context, player);
       totalBonus += bonus;
     }
     
@@ -280,8 +280,8 @@ export class AdvancedMatchFeatures {
     };
     
     for (const ability of player.special_abilities) {
-      if (criticalAbilities[ability] && criticalAbilities[ability][pointType]) {
-        bonus += criticalAbilities[ability][pointType];
+      if (criticalAbilities[ability.name] && criticalAbilities[ability.name][pointType]) {
+        bonus += criticalAbilities[ability.name][pointType];
       }
     }
     

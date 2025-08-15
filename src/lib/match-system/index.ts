@@ -430,17 +430,17 @@ export class UnifiedMatchEngine {
 /**
  * 簡単な基本マッチ実行
  */
-export function simulateBasicMatch(config: MatchConfig): MatchResult {
+export async function simulateBasicMatch(config: MatchConfig): Promise<MatchResult> {
   const engine = new UnifiedMatchEngine({ ...config, mode: 'basic' });
-  return engine.simulateMatch() as MatchResult;
+  return await engine.simulateMatch();
 }
 
 /**
  * 高度マッチ実行
  */
-export function simulateAdvancedMatch(config: MatchConfig): MatchResult {
+export async function simulateAdvancedMatch(config: MatchConfig): Promise<MatchResult> {
   const engine = new UnifiedMatchEngine({ ...config, mode: 'advanced' });
-  return engine.simulateMatch() as MatchResult;
+  return await engine.simulateMatch();
 }
 
 /**
@@ -467,7 +467,7 @@ export async function simulateInteractiveMatch(
 /**
  * デバッグマッチ実行
  */
-export function simulateDebugMatch(config: MatchConfig): MatchResult {
+export async function simulateDebugMatch(config: MatchConfig): Promise<MatchResult> {
   const engine = new UnifiedMatchEngine({ ...config, mode: 'debug' });
-  return engine.simulateMatch() as MatchResult;
+  return await engine.simulateMatch();
 }

@@ -8,8 +8,8 @@ import {
   UnifiedMatchState,
   UnifiedMatchMode,
   UnifiedMatchFormat
-} from '@/lib/unified-match-system';
-import { MatchChoice } from '@/lib/interactive-match-engine';
+} from '@/lib/legacy-match-engines/unified-match-system';
+import { MatchChoice } from '@/lib/legacy-match-engines/interactive-match-engine';
 import { TacticCard, TacticCardManager, getDefaultTacticCards } from '@/lib/tactic-cards-system';
 
 interface InteractiveMatchViewerProps {

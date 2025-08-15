@@ -2,8 +2,8 @@
 
 import { Player } from '@/types/game';
 import { PokemonStats } from '@/types/pokemon-stats';
-import { getAbilityData, calculateAbilityBonus } from './pokemon-abilities-data';
-import { PokemonStatsCalculator } from './pokemon-stats-calculator';
+import { getAbilityData, calculateAbilityBonus } from '../pokemon-abilities-data';
+import { PokemonStatsCalculator } from '../pokemon-stats-calculator';
 import { SpecialAbility, SpecialAbilityCalculator, TENNIS_SPECIAL_ABILITIES } from '@/types/special-abilities';
 
 // 戦術システム

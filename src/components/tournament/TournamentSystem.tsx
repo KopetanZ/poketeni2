@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Player } from '@/types/game';
-import { AdvancedMatchEngine, generateAdvancedCPU } from '@/lib/advanced-match-engine';
+import { AdvancedMatchEngine, generateAdvancedCPU } from '@/lib/legacy-match-engines/advanced-match-engine';
 
 interface Tournament {
   id: string;

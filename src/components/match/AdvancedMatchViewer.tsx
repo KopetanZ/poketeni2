@@ -10,6 +10,7 @@ import {
   EnhancedPlayer,
   simulateAdvancedMatch
 } from '@/lib/match-system';
+import { EnhancedMatchPoint } from '@/lib/legacy-match-engines/advanced-match-engine';
 
 interface AdvancedMatchViewerProps {
   homePlayer: Player;
@@ -52,6 +53,13 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
 
     const stats = baseStats[difficulty as keyof typeof baseStats] || baseStats.normal;
     
+    const serveSkill = Math.floor(Math.random() * (stats.max - stats.min)) + stats.min;
+    const returnSkill = Math.floor(Math.random() * (stats.max - stats.min)) + stats.min;
+    const volleySkill = Math.floor(Math.random() * (stats.max - stats.min)) + stats.min;
+    const strokeSkill = Math.floor(Math.random() * (stats.max - stats.min)) + stats.min;
+    const mentalSkill = Math.floor(Math.random() * (stats.max - stats.min)) + stats.min;
+    const staminaSkill = Math.floor(Math.random() * (stats.max - stats.min)) + stats.min;
+    
     return {
       id: `cpu_${Date.now()}`,
       pokemon_name: `CPU選手`,
@@ -59,14 +67,42 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
       level: Math.floor(Math.random() * 20) + 20,
       grade: 2 as 1 | 2 | 3,
       position: 'regular' as const,
-      serve_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
-      return_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
-      volley_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
-      stroke_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
-      mental: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
+      serve_skill: serveSkill,
+      return_skill: returnSkill,
+      volley_skill: volleySkill,
+      stroke_skill: strokeSkill,
+      mental: mentalSkill,
       stamina: 100,
       experience: Math.floor(Math.random() * 1000),
-      condition: 50
+      condition: 'good',
+      stat_gages: {
+        serve_skill_gage: 0,
+        return_skill_gage: 0,
+        volley_skill_gage: 0,
+        stroke_skill_gage: 0,
+        mental_gage: 0,
+        stamina_gage: 0
+      },
+      growth_efficiency: {
+        serve_skill_efficiency: 1.0,
+        return_skill_efficiency: 1.0,
+        volley_skill_efficiency: 1.0,
+        stroke_skill_efficiency: 1.0,
+        mental_efficiency: 1.0,
+        stamina_efficiency: 1.0
+      },
+      motivation: 80,
+      enrollmentYear: new Date().getFullYear(),
+      personality: 'hardworker',
+      initialStats: {
+        serve_skill: serveSkill,
+        return_skill: returnSkill,
+        volley_skill: volleySkill,
+        stroke_skill: strokeSkill,
+        mental: mentalSkill,
+        stamina: staminaSkill,
+        average: Math.round((serveSkill + returnSkill + volleySkill + strokeSkill + mentalSkill + staminaSkill) / 6)
+      }
     };
   };
 
@@ -107,9 +143,12 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
       }
     };
     
-    const result = simulateAdvancedMatch(config);
-    
-    setMatchResult(result);
+    try {
+      const result = await simulateAdvancedMatch(config);
+      setMatchResult(result);
+    } catch (error) {
+      console.error('Match simulation error:', error);
+    }
     setIsSimulating(false);
     setShowReplay(true);
   };
@@ -144,7 +183,7 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
   };
 
   // ポイント詳細表示
-  const renderPointDetail = (point: EnhancedMatchPoint) => {
+  const renderPointDetail = (point: any) => {
     return (
       <div className="bg-gray-50 rounded-lg p-4 space-y-3">
         <div className="flex justify-between items-center">
@@ -480,7 +519,7 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
                 </h3>
                 <div className="text-center">
                   <div className="text-4xl font-bold mb-2">
-                    {matchResult.home_score} - {matchResult.away_score}
+                    {matchResult.final_score.home} - {matchResult.final_score.away}
                   </div>
                   <div className="text-xl">
                     {matchResult.winner === 'home' ? '🏆 勝利！' : '😢 敗北...'}
@@ -499,7 +538,7 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-bold text-gray-800">📺 ポイント リプレイ</h3>
                   <div className="text-sm text-gray-600">
-                    {currentPointIndex + 1} / {matchResult.match_log.length}
+                    {currentPointIndex + 1} / {matchResult.sets[0]?.points?.length || 0}
                   </div>
                 </div>
 
@@ -513,7 +552,7 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
                   </button>
                   <button
                     onClick={advanceReplay}
-                    disabled={currentPointIndex >= matchResult.match_log.length - 1}
+                    disabled={currentPointIndex >= (matchResult.sets[0]?.points?.length || 0) - 1}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-lg font-semibold transition-colors"
                   >
                     次へ ⏭️
@@ -521,7 +560,7 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
                 </div>
 
                 {/* 現在のポイント詳細 */}
-                {matchResult.match_log[currentPointIndex] && renderPointDetail(matchResult.match_log[currentPointIndex])}
+                {matchResult.sets[0]?.points?.[currentPointIndex] && renderPointDetail(matchResult.sets[0].points[currentPointIndex])}
               </div>
 
               {/* 完了ボタン */}

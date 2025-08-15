@@ -8,8 +8,8 @@ import {
   TacticType, 
   EnhancedMatchPoint,
   generateAdvancedCPU 
-} from '@/lib/advanced-match-engine';
-import { MatchEngine, MatchResult, CPUPlayer } from '@/lib/match-engine';
+} from '@/lib/legacy-match-engines/advanced-match-engine';
+import { MatchEngine, MatchResult, CPUPlayer } from '@/lib/legacy-match-engines/match-engine';
 import { PlayerGenerator } from '@/lib/player-generator';
 import { PokemonStatsCalculator } from '@/lib/pokemon-stats-calculator';
 import { ENHANCED_TENNIS_SPECIAL_ABILITIES } from '@/lib/enhanced-special-abilities-database';
