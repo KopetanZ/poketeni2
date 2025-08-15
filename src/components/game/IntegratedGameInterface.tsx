@@ -119,6 +119,44 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
   // 初期化状態管理（重複初期化防止用）
   const [calendarInitialized, setCalendarInitialized] = useState(false);
 
+  // 自動保存の間隔（5分 = 300,000ミリ秒）
+  const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
+  
+  // 自動保存のタイマーID
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 自動保存機能を開始
+  const startAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearInterval(autoSaveTimerRef.current);
+    }
+    
+    autoSaveTimerRef.current = setInterval(async () => {
+      console.log('🔄 5分間隔の自動保存を実行中...');
+      try {
+        const success = await syncGameState();
+        if (success) {
+          console.log('✅ 自動保存が完了しました');
+        } else {
+          console.warn('⚠️ 自動保存に失敗しました');
+        }
+      } catch (error) {
+        console.error('❌ 自動保存中にエラーが発生:', error);
+      }
+    }, AUTO_SAVE_INTERVAL);
+    
+    console.log('🚀 5分間隔の自動保存を開始しました');
+  }, []);
+
+  // 自動保存機能を停止
+  const stopAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearInterval(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+      console.log('⏹️ 自動保存を停止しました');
+    }
+  }, []);
+
   // Supabase接続状態を確認するヘルパー関数
   const checkSupabaseConnection = async (): Promise<boolean> => {
     try {
@@ -342,6 +380,102 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
     }
   };
 
+  // ゲーム状態の強制保存関数（カード使用後などに使用）
+  const forceSaveGameState = async (): Promise<boolean> => {
+    try {
+      console.log('💾 ゲーム状態の強制保存を開始...');
+      
+      // 現在のゲーム状態を取得
+      const currentGameState = gameFlow.getGameState();
+      const currentDate = gameFlow.getCurrentDay();
+      
+      if (!currentDate || !currentDate.year || !currentDate.month || !currentDate.day) {
+        console.error('❌ 無効な日付状態のため強制保存をスキップ:', currentDate);
+        return false;
+      }
+      
+      // 接続状態を確認
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        console.warn('⚠️ Supabase接続が利用できないため、強制保存をスキップします');
+        return false;
+      }
+      
+      // 現在のユーザーIDを取得
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('❌ ユーザーが認証されていません');
+        return false;
+      }
+      
+      // カレンダー状態を強制保存
+      const calendarSaveSuccess = await persistCalendarStateSync(currentDate);
+      if (!calendarSaveSuccess) {
+        console.warn('⚠️ カレンダー状態の保存に失敗しました');
+        return false;
+      }
+      
+      // プレイヤー情報も強制保存
+      if (currentGameState.allPlayers && currentGameState.allPlayers.length > 0) {
+        console.log('👥 プレイヤー情報の強制保存を実行中...');
+        
+        for (const player of currentGameState.allPlayers) {
+          try {
+            const { error: playerUpdateError } = await supabase
+              .from('players')
+              .update({
+                serve_skill: player.serve_skill || 0,
+                return_skill: player.return_skill || 0,
+                volley_skill: player.volley_skill || 0,
+                stroke_skill: player.stroke_skill || 0,
+                mental: player.mental || 0,
+                stamina: player.stamina || 100,
+                experience: player.experience || 0,
+                level: player.level || 1,
+                condition: player.condition || 50
+              })
+              .eq('id', player.id);
+            
+            if (playerUpdateError) {
+              console.error(`❌ プレイヤー ${player.pokemon_name} の更新に失敗:`, playerUpdateError);
+            }
+          } catch (playerError) {
+            console.error(`❌ プレイヤー ${player.pokemon_name} の保存中にエラー:`, playerError);
+          }
+        }
+      }
+      
+      // 学校統計も強制保存
+      if (currentGameState.schoolStats) {
+        console.log('🏫 学校統計の強制保存を実行中...');
+        
+        try {
+          const { error: schoolUpdateError } = await supabase
+            .from('schools')
+            .update({
+              funds: currentGameState.schoolStats.funds || 0,
+              reputation: currentGameState.schoolStats.reputation || 0,
+              facilities: currentGameState.schoolStats.facilities || 0
+            })
+            .eq('user_id', user.id);
+          
+          if (schoolUpdateError) {
+            console.error('❌ 学校統計の更新に失敗:', schoolUpdateError);
+          }
+        } catch (schoolError) {
+          console.error('❌ 学校統計の保存中にエラー:', schoolError);
+        }
+      }
+      
+      console.log('✅ ゲーム状態の強制保存が完了しました');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ ゲーム状態の強制保存でエラーが発生:', error);
+      return false;
+    }
+  };
+
   // イベントログを追加する関数
   const addEventLog = (log: Omit<typeof eventLogs[0], 'id' | 'timestamp'>) => {
     const newLog = {
@@ -369,6 +503,146 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       });
     }
   }, [allPlayers, gameFlow]); // gameStateを依存関係から削除
+
+  // 自動保存機能の管理
+  useEffect(() => {
+    // ゲームデータが利用可能になったら自動保存を開始
+    if (allPlayers && allPlayers.length > 0 && schoolId) {
+      startAutoSave();
+      
+      // コンポーネントマウント時にデータベースから最新の日付を取得して同期
+      const restoreDateFromDatabase = async () => {
+        try {
+          console.log('🔄 コンポーネントマウント時の日付状態復元を開始...');
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            console.warn('⚠️ ユーザーが認証されていないため、日付復元をスキップ');
+            return;
+          }
+          
+          // データベースから最新の日付を取得
+          const { data: dbData, error: fetchError } = await supabase
+            .from('schools')
+            .select('current_year, current_month, current_day')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (fetchError || !dbData) {
+            console.warn('⚠️ データベースからの日付取得に失敗:', fetchError);
+            return;
+          }
+          
+          const dbDate = {
+            year: dbData.current_year,
+            month: dbData.current_month,
+            day: dbData.current_day
+          };
+          
+          // 現在のゲーム状態の日付と比較
+          const currentGameDate = gameFlow.getCurrentDay();
+          
+          if (currentGameDate && 
+              (dbDate.year !== currentGameDate.year || 
+               dbDate.month !== currentGameDate.month || 
+               dbDate.day !== currentGameDate.day)) {
+            
+            console.log('📊 日付の不一致を検出。データベースの日付で復旧します:', {
+              database: dbDate,
+              game: currentGameDate
+            });
+            
+            // データベースの日付でゲーム状態を復旧
+            if (typeof gameFlow.initializeCalendarWithDate === 'function') {
+              gameFlow.initializeCalendarWithDate(dbDate.year, dbDate.month, dbDate.day);
+              console.log('✅ 日付状態を復旧しました:', dbDate);
+              
+              // 復旧後の状態を再同期
+              const recoveredState = gameFlow.getGameState();
+              setGameState(recoveredState);
+              
+              setNotifications(prev => [...prev, '日付状態を復旧しました'].slice(-5));
+            }
+          } else {
+            console.log('✅ 日付状態は一致しています:', dbDate);
+          }
+          
+        } catch (error) {
+          console.error('❌ 日付状態復元中にエラーが発生:', error);
+        }
+      };
+      
+      // 日付状態の復元を実行
+      restoreDateFromDatabase();
+    }
+    
+    // クリーンアップ時に自動保存を停止
+    return () => {
+      stopAutoSave();
+    };
+  }, [allPlayers, schoolId, startAutoSave, stopAutoSave, gameFlow]);
+
+  // ページの可視性変更時の状態同期（タブ切り替え対応）
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && allPlayers && allPlayers.length > 0 && schoolId) {
+        console.log('🔄 ページが可視になったため、状態同期を実行します...');
+        
+        try {
+          // データベースから最新の状態を取得して同期
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+          
+          const { data: dbData, error: fetchError } = await supabase
+            .from('schools')
+            .select('current_year, current_month, current_day')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (fetchError || !dbData) return;
+          
+          const dbDate = {
+            year: dbData.current_year,
+            month: dbData.current_month,
+            day: dbData.current_day
+          };
+          
+          const currentGameDate = gameFlow.getCurrentDay();
+          
+          // 日付の不一致がある場合のみ復旧
+          if (currentGameDate && 
+              (dbDate.year !== currentGameDate.year || 
+               dbDate.month !== currentGameDate.month || 
+               dbDate.day !== currentGameDate.day)) {
+            
+            console.log('📊 タブ切り替え時の日付不一致を検出。復旧します:', {
+              database: dbDate,
+              game: currentGameDate
+            });
+            
+            if (typeof gameFlow.initializeCalendarWithDate === 'function') {
+              gameFlow.initializeCalendarWithDate(dbDate.year, dbDate.month, dbDate.day);
+              
+              const recoveredState = gameFlow.getGameState();
+              setGameState(recoveredState);
+              
+              setNotifications(prev => [...prev, 'タブ切り替え時に日付状態を復旧しました'].slice(-5));
+            }
+          }
+        } catch (error) {
+          console.error('❌ タブ切り替え時の状態同期でエラーが発生:', error);
+        }
+      }
+    };
+
+    // イベントリスナーを追加
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // クリーンアップ
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [allPlayers, schoolId, gameFlow]);
 
   // gameDataInitializedイベントの監視（カレンダー状態の初期化用）
   useEffect(() => {
@@ -630,6 +904,22 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
         } else {
           // 状態整合性チェックが成功した場合
           console.log('✅ 状態整合性チェックに成功しました');
+        }
+        
+        // カード使用後の強制データベース保存を実行
+        console.log('💾 カード使用後の強制データベース保存を実行中...');
+        try {
+          const forceSaveSuccess = await forceSaveGameState();
+          if (forceSaveSuccess) {
+            console.log('✅ カード使用後の強制保存が完了しました');
+            setNotifications(prev => [...prev, 'ゲーム状態を保存しました'].slice(-5));
+          } else {
+            console.warn('⚠️ カード使用後の強制保存に失敗しました');
+            setNotifications(prev => [...prev, '警告: ゲーム状態の保存に失敗しました'].slice(-5));
+          }
+        } catch (saveError) {
+          console.error('❌ カード使用後の強制保存でエラーが発生:', saveError);
+          setNotifications(prev => [...prev, 'エラー: ゲーム状態の保存に失敗しました'].slice(-5));
         }
       } else {
         // 日付が進んでいない場合、警告を追加

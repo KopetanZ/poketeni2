@@ -3,17 +3,18 @@
 import { useState, useEffect } from 'react';
 import { Player } from '@/types/game';
 import { 
-  AdvancedMatchEngine, 
-  AdvancedSetResult, 
-  TacticType, 
-  EnhancedMatchPoint,
-  generateAdvancedCPU 
-} from '@/lib/advanced-match-engine';
+  UnifiedMatchEngine,
+  MatchConfig,
+  MatchResult,
+  TacticType,
+  EnhancedPlayer,
+  simulateAdvancedMatch
+} from '@/lib/match-system';
 
 interface AdvancedMatchViewerProps {
   homePlayer: Player;
   onClose: () => void;
-  onMatchComplete: (result: AdvancedSetResult, opponent: Player) => void;
+  onMatchComplete: (result: MatchResult, opponent: Player) => void;
 }
 
 export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComplete }: AdvancedMatchViewerProps) {
@@ -22,13 +23,13 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
   const [homeTactic, setHomeTactic] = useState<TacticType>('balanced');
   const [awayTactic, setAwayTactic] = useState<TacticType>('balanced');
   const [isSimulating, setIsSimulating] = useState(false);
-  const [matchResult, setMatchResult] = useState<AdvancedSetResult | null>(null);
+  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [currentPointIndex, setCurrentPointIndex] = useState(0);
   const [showReplay, setShowReplay] = useState(false);
 
   // 対戦相手を生成
   const generateOpponent = () => {
-    const cpu = generateAdvancedCPU(difficulty);
+    const cpu = generateCPUPlayer(difficulty);
     setOpponent(cpu);
     
     // CPUの戦術を難易度に応じて設定
@@ -38,6 +39,35 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
                       difficulty === 'hard' ? Math.floor(Math.random() * 5) :
                       Math.floor(Math.random() * 6);
     setAwayTactic(tactics[tacticIndex]);
+  };
+
+  // CPU プレイヤー生成関数
+  const generateCPUPlayer = (difficulty: string): Player => {
+    const baseStats = {
+      easy: { min: 30, max: 50 },
+      normal: { min: 45, max: 65 },
+      hard: { min: 60, max: 80 },
+      extreme: { min: 75, max: 95 }
+    };
+
+    const stats = baseStats[difficulty as keyof typeof baseStats] || baseStats.normal;
+    
+    return {
+      id: `cpu_${Date.now()}`,
+      pokemon_name: `CPU選手`,
+      pokemon_id: Math.floor(Math.random() * 1000),
+      level: Math.floor(Math.random() * 20) + 20,
+      grade: 2 as 1 | 2 | 3,
+      position: 'regular' as const,
+      serve_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
+      return_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
+      volley_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
+      stroke_skill: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
+      mental: Math.floor(Math.random() * (stats.max - stats.min)) + stats.min,
+      stamina: 100,
+      experience: Math.floor(Math.random() * 1000),
+      condition: 50
+    };
   };
 
   // 試合開始
@@ -50,17 +80,34 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
     // 短い遅延でリアルタイム感演出
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    const result = AdvancedMatchEngine.simulateAdvancedSet(
-      homePlayer,
-      opponent,
+    // 新しい統合システムで試合実行
+    const config: MatchConfig = {
+      mode: 'advanced',
+      format: 'single_set',
+      homePlayer: {
+        ...homePlayer,
+        tactic: homeTactic,
+        current_stamina: 100,
+        current_mental: homePlayer.mental
+      } as EnhancedPlayer,
+      awayPlayer: {
+        ...opponent,
+        tactic: awayTactic,
+        current_stamina: 100,
+        current_mental: opponent.mental,
+        ai_personality: 'balanced'
+      } as EnhancedPlayer,
       homeTactic,
       awayTactic,
-      {
+      environment: {
         weather: 'sunny',
         court_surface: 'hard',
-        pressure_level: 30
+        pressure_level: 30,
+        tournament_level: 'practice'
       }
-    );
+    };
+    
+    const result = simulateAdvancedMatch(config);
     
     setMatchResult(result);
     setIsSimulating(false);
@@ -71,7 +118,8 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
   const advanceReplay = () => {
     if (!matchResult) return;
     
-    if (currentPointIndex < matchResult.match_log.length - 1) {
+    const allPoints = matchResult.sets.flatMap(set => set.points);
+    if (currentPointIndex < allPoints.length - 1) {
       setCurrentPointIndex(currentPointIndex + 1);
     }
   };
@@ -156,9 +204,9 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
   };
 
   // 統計表示
-  const renderStatistics = (result: AdvancedSetResult) => {
-    const homeStats = result.home_statistics;
-    const awayStats = result.away_statistics;
+  const renderStatistics = (result: MatchResult) => {
+    const homeStats = result.total_home_performance;
+    const awayStats = result.total_away_performance;
     
     return (
       <div className="bg-white rounded-lg p-6 mb-6">
@@ -169,12 +217,12 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
           <div className="text-center">
             <h4 className="font-semibold text-blue-700 mb-2">{homePlayer.pokemon_name}</h4>
             <div className="space-y-1 text-sm">
-              <div>ポイント獲得: {homeStats.total_points_won}</div>
-              <div>サービスP: {homeStats.service_points_won}</div>
-              <div>リターンP: {homeStats.return_points_won}</div>
-              <div>ネットP: {homeStats.net_points_won}</div>
-              <div>特性発動: {homeStats.ability_activations}回</div>
-              <div>クリティカル: {homeStats.critical_hits}回</div>
+              <div>ポイント獲得: {homeStats.total_points}</div>
+              <div>サーブ成功: {homeStats.serve_success}</div>
+              <div>リターン成功: {homeStats.return_success}</div>
+              <div>ボレー成功: {homeStats.volley_success}</div>
+              <div>ストローク成功: {homeStats.stroke_success}</div>
+              <div>クリティカル: {homeStats.critical_hits || 0}回</div>
             </div>
           </div>
 
@@ -182,7 +230,7 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
           <div className="text-center self-center">
             <div className="text-2xl font-bold">VS</div>
             <div className="text-lg font-semibold mt-2">
-              {result.home_score} - {result.away_score}
+              {result.final_score.home} - {result.final_score.away}
             </div>
           </div>
 
@@ -190,12 +238,12 @@ export default function AdvancedMatchViewer({ homePlayer, onClose, onMatchComple
           <div className="text-center">
             <h4 className="font-semibold text-red-700 mb-2">{opponent?.pokemon_name}</h4>
             <div className="space-y-1 text-sm">
-              <div>ポイント獲得: {awayStats.total_points_won}</div>
-              <div>サービスP: {awayStats.service_points_won}</div>
-              <div>リターンP: {awayStats.return_points_won}</div>
-              <div>ネットP: {awayStats.net_points_won}</div>
-              <div>特性発動: {awayStats.ability_activations}回</div>
-              <div>クリティカル: {awayStats.critical_hits}回</div>
+              <div>ポイント獲得: {awayStats.total_points}</div>
+              <div>サーブ成功: {awayStats.serve_success}</div>
+              <div>リターン成功: {awayStats.return_success}</div>
+              <div>ボレー成功: {awayStats.volley_success}</div>
+              <div>ストローク成功: {awayStats.stroke_success}</div>
+              <div>クリティカル: {awayStats.critical_hits || 0}回</div>
             </div>
           </div>
         </div>
