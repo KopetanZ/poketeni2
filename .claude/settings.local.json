@@ -21,7 +21,9 @@
       "Bash(npx eslint:*)",
       "Bash(mkdir:*)",
       "Bash(rm:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
