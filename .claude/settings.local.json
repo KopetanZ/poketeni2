@@ -23,6 +23,7 @@
       "Bash(rm:*)",
       "Bash(chmod:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

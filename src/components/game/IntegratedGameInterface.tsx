@@ -512,6 +512,15 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       }
     }
     
+    // 日付進行後の完全状態保存
+    try {
+      console.log('📅 日付進行後: ゲーム状態を永続化中...');
+      await persistGameState();
+      console.log('📅 日付進行後: 状態保存完了');
+    } catch (persistError) {
+      console.error('📅 日付進行後: 状態保存失敗:', persistError);
+    }
+    
     setIsAdvancingDay(false);
   };
 
@@ -669,6 +678,15 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       } catch (recoveryError) {
         console.error('❌ 状態復旧処理で例外が発生:', recoveryError);
       }
+    }
+    
+    // カード使用後の完全状態保存
+    try {
+      console.log('🃏 カード使用後: ゲーム状態を永続化中...');
+      await persistGameState();
+      console.log('🃏 カード使用後: 状態保存完了');
+    } catch (persistError) {
+      console.error('🃏 カード使用後: 状態保存失敗:', persistError);
     }
     
     setIsAdvancingDay(false);
@@ -1252,7 +1270,7 @@ export const IntegratedGameInterface: React.FC<IntegratedGameInterfaceProps> = (
       } catch (error) {
         console.error('定期状態保存: 失敗:', error);
       }
-    }, 5 * 60 * 1000); // 5分
+    }, 15 * 60 * 1000); // 15分（カード使用時にも保存するため間隔を延長）
     
     return () => clearInterval(interval);
   }, [schoolId]);
